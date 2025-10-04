@@ -52,11 +52,14 @@ interface Metadata {
     lng: number
   }
   timestamp: string
+  message?: string
 }
 
 interface FetchSuggestionsResponse {
   results: Result[]
   metadata: Metadata
+  error?: string
+  message?: string
 }
 
 function TestFetchSuggestions() {
@@ -112,6 +115,19 @@ function TestFetchSuggestions() {
 
       if (functionError) {
         throw functionError
+      }
+
+      // Check if response has error or no results
+      if (responseData?.error) {
+        setError(responseData.message || responseData.error)
+        setData(null)
+        return
+      }
+
+      if (responseData?.results?.length === 0) {
+        setError(responseData.metadata?.message || 'No restaurants found in this area')
+        setData(null)
+        return
       }
 
       setData(responseData)

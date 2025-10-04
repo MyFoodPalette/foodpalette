@@ -23,9 +23,39 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { restaurants, parsedMenus, searchParams }: CombineRequest = await req.json();
+    console.log('combineAllResults: Parsing request body...');
+    const requestData = await req.json();
+    console.log('combineAllResults: Request body parsed successfully');
+    
+    const { restaurants, parsedMenus, searchParams }: CombineRequest = requestData;
     
     console.log(`Combining data from ${restaurants?.length || 0} restaurants and ${parsedMenus?.length || 0} parsed menus`);
+
+    // If no restaurants or no parsed menus with data, return empty results
+    const hasMenuData = parsedMenus && parsedMenus.length > 0 && 
+      parsedMenus.some(menu => menu?.parsedMenus && menu.parsedMenus.length > 0);
+    
+    if (!restaurants || restaurants.length === 0 || !hasMenuData) {
+      console.log('No restaurants or menu data available, returning empty results');
+      return new Response(JSON.stringify({
+        results: [],
+        metadata: {
+          totalResults: 0,
+          searchRadius: parseInt(searchParams.radius) || 5,
+          unit: 'miles',
+          searchCenter: {
+            lat: parseFloat(searchParams.latitude) || 0,
+            lng: parseFloat(searchParams.longitude) || 0
+          },
+          timestamp: new Date().toISOString()
+        }
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
 
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openaiApiKey) {
@@ -130,7 +160,20 @@ Please combine this data into the required JSON format. Focus on creating meanin
     }
 
     const openaiData = await openaiResponse.json();
-    const generatedResponse = JSON.parse(openaiData.choices[0].message.content);
+    console.log('OpenAI response received, parsing content...');
+    
+    const content = openaiData.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('OpenAI returned empty content');
+    }
+    
+    let generatedResponse;
+    try {
+      generatedResponse = JSON.parse(content);
+    } catch (parseError) {
+      console.error('Failed to parse OpenAI response:', content);
+      throw new Error(`Invalid JSON from OpenAI: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+    }
 
     console.log('Successfully generated combined response');
 
