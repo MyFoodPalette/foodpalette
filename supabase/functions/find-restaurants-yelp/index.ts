@@ -51,9 +51,8 @@ async function searchYelpRestaurants(
     latitude: latitude.toString(),
     longitude: longitude.toString(),
     radius: Math.round(Math.min(radiusMeters, 40000)).toString(), // Yelp max is 40000 meters
-    categories: "restaurants",
-    limit: "20", // Yelp allows up to 50, but 20 is reasonable,
-    sort_by: "distance",
+    limit: "50", // Yelp allows up to 50, but 20 is reasonable,
+    sort_by: "best_match",
   });
 
   const response = await fetch(`${url}?${params.toString()}`, {
@@ -74,7 +73,7 @@ async function searchYelpRestaurants(
 }
 
 /**
- * Use OpenAI to find the website URL for a restaurant
+ * Use OpenAI Responses API to find the website URL for a restaurant
  */
 async function findWebsiteWithOpenAI(
   restaurantName: string,
@@ -83,9 +82,11 @@ async function findWebsiteWithOpenAI(
 ): Promise<string> {
   const prompt = `Find the official website URL for this restaurant:
 Name: ${restaurantName}
-Address: ${address}`;
+Address: ${address}
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+Search on the internet for the website URL. If the restaurant has an official website, return it. If not, return "NOT_FOUND". Do not make up URLs.`;
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -93,44 +94,30 @@ Address: ${address}`;
     },
     body: JSON.stringify({
       model: "gpt-5",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a helpful assistant that finds official restaurant websites.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
       tools: [
+        { type: "web_search" },
         {
           type: "function",
-          function: {
-            name: "return_restaurant_website",
-            description:
-              "Returns the official website URL for a restaurant, or indicates that no website was found",
-            parameters: {
-              type: "object",
-              properties: {
-                url: {
-                  type: "string",
-                  description:
-                    'The official website URL (e.g., https://example.com) or "NOT_FOUND" if no website could be located',
-                },
+          name: "return_restaurant_website",
+          description:
+            "Returns the official website URL for a restaurant, or indicates that no website was found",
+          strict: true,
+          parameters: {
+            type: "object",
+            properties: {
+              url: {
+                type: "string",
+                description:
+                  'The official website URL (e.g., https://example.com) or "NOT_FOUND" if no website could be located',
               },
-              required: ["url"],
             },
+            required: ["url"],
+            additionalProperties: false,
           },
         },
       ],
-      tool_choice: {
-        type: "function",
-        function: {
-          name: "return_restaurant_website",
-        },
-      },
+      input: prompt,
+      reasoning: { effort: "high" },
     }),
   });
 
@@ -143,26 +130,23 @@ Address: ${address}`;
   }
 
   const data = await response.json();
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-
-  if (!toolCall) {
-    console.error(`No tool call returned from OpenAI for ${restaurantName}`);
-    return "NOT_FOUND";
-  }
 
   try {
-    const result = JSON.parse(toolCall.function.arguments);
-    const websiteUrl = result.url?.trim() || "NOT_FOUND";
+    const output = data.output as any[];
+    const args = output[output.length - 1].arguments as any;
+    const websiteUrl = args ? JSON.parse(args).url?.trim() : "NOT_FOUND";
 
     // Basic validation: check if it looks like a URL
     if (websiteUrl === "NOT_FOUND" || !websiteUrl.match(/^https?:\/\//i)) {
+      console.log(`No valid website found for: ${restaurantName}`);
       return "NOT_FOUND";
     }
 
+    console.log(`Website found for ${restaurantName}: ${websiteUrl}`);
     return websiteUrl;
   } catch (parseError) {
     console.error(
-      `Failed to parse OpenAI response for ${restaurantName}:`,
+      `Failed to parse function call for ${restaurantName}:`,
       parseError
     );
     return "NOT_FOUND";
@@ -184,9 +168,9 @@ Deno.serve(async (req: Request) => {
 
   try {
     const url = new URL(req.url);
-    const latitude = url.searchParams.get("latitude");
-    const longitude = url.searchParams.get("longitude");
-    const radiusMiles = url.searchParams.get("radius");
+    const latitude = url.searchParams.get("latitude") || "37.7749";
+    const longitude = url.searchParams.get("longitude") || "-122.4194";
+    const radiusMiles = url.searchParams.get("radius") || "5";
 
     // Validate required parameters
     if (!latitude || !longitude || !radiusMiles) {
@@ -283,6 +267,10 @@ Deno.serve(async (req: Request) => {
     // Step 2: For each restaurant, find the website using OpenAI (in parallel)
     const results: RestaurantWebsite[] = await Promise.all(
       businesses.map(async (business) => {
+        console.log(
+          "Business Location:",
+          JSON.stringify(business.location, null, 2)
+        );
         const address = business.location.display_address.join(", ");
         const website = business.attributes?.menu_url;
 
@@ -301,12 +289,6 @@ Deno.serve(async (req: Request) => {
             address,
             openaiApiKey
           );
-
-          if (websiteUrl === "NOT_FOUND") {
-            console.log(`No website found for: ${business.name}`);
-          } else {
-            console.log(`Website found for ${business.name}: ${websiteUrl}`);
-          }
 
           return {
             name: business.name,
