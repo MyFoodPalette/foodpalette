@@ -12,6 +12,51 @@ Deno.serve(async (req: Request) => {
     })
   }
 
+  try {
+    // Get latitude, longitude, and radius from query params (with defaults)
+    const url = new URL(req.url);
+    const latitude = url.searchParams.get('latitude') || '37.7749';
+    const longitude = url.searchParams.get('longitude') || '-122.4194';
+    const radius = url.searchParams.get('radius') || '5';
+
+    // Call the maps-places endpoint to get restaurants
+    const mapsPlacesUrl = `${url.origin.replace(url.pathname, '')}/maps-places?action=findAllRestaurants&latitude=${latitude}&longitude=${longitude}&radius=${radius}&limitToFirstPage=true`;
+    
+    console.log('Calling maps-places endpoint:', mapsPlacesUrl);
+    
+    const mapsResponse = await fetch(mapsPlacesUrl, {
+      headers: {
+        'Authorization': req.headers.get('Authorization') || '',
+      }
+    });
+
+    if (!mapsResponse.ok) {
+      throw new Error(`Maps API error: ${mapsResponse.status}`);
+    }
+
+    const mapsData = await mapsResponse.json();
+    
+    // Extract website URLs from the results
+    const websiteUrls: string[] = [];
+    if (mapsData.results && Array.isArray(mapsData.results)) {
+      for (const place of mapsData.results) {
+        if (place.websiteUri) {
+          websiteUrls.push(place.websiteUri);
+        }
+      }
+    }
+
+    console.log('Extracted website URLs:', websiteUrls);
+    console.log('Total URLs found:', websiteUrls.length);
+
+    // TODO: Continue with menu parsing using these URLs
+    // For now, return the URLs along with the hard-coded example data
+
+  } catch (error) {
+    console.error('Error fetching restaurants:', error);
+    // Fall back to example data if there's an error
+  }
+
   // Hard-coded example response data
   const data = {
     "results": [
