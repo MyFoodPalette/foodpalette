@@ -309,6 +309,76 @@ Once the development server is running, you can access:
 
 The function currently returns hard-coded example data showing restaurant suggestions with matching menu items.
 
+## 🚀 Deployment
+
+### Deploy to Vercel
+
+This project includes a `vercel.json` configuration file for easy deployment to Vercel.
+
+#### Quick Deploy
+
+1. **Push your code to GitHub/GitLab/Bitbucket**
+
+2. **Import to Vercel:**
+   - Go to [vercel.com](https://vercel.com)
+   - Click "New Project"
+   - Import your repository
+   - Vercel will automatically detect the `vercel.json` configuration
+
+3. **Set Environment Variables:**
+   
+   Get your production Supabase keys:
+   ```bash
+   ./get-supabase-keys.sh prod
+   ```
+   
+   Add these in Vercel's project settings:
+   - `VITE_SUPABASE_URL` - Your Supabase project URL
+   - `VITE_SUPABASE_ANON_KEY` - Your Supabase anon/public key
+
+4. **Deploy!** 🎉
+   
+   Vercel will automatically build and deploy your app.
+
+#### Manual Deploy via CLI
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel
+
+# Deploy to production
+vercel --prod
+```
+
+### Deploy Edge Functions
+
+Deploy your Supabase Edge Functions separately:
+
+```bash
+# Deploy all functions
+supabase functions deploy
+
+# Deploy specific function
+supabase functions deploy fetchSuggestions
+```
+
+### Other Deployment Options
+
+**Netlify:**
+- Similar process to Vercel
+- Set build command: `cd frontend && npm install && npm run build`
+- Set publish directory: `frontend/dist`
+- Add environment variables in Netlify dashboard
+
+**Cloudflare Pages:**
+- Connect your GitHub repository
+- Set build command: `cd frontend && npm install && npm run build`
+- Set build output directory: `frontend/dist`
+- Add environment variables in Cloudflare dashboard
+
 ## 🐛 Troubleshooting
 
 ### Common Issues

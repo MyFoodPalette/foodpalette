@@ -134,7 +134,7 @@ function TestFetchSuggestions() {
             <p><strong>Timestamp:</strong> {data.metadata.timestamp}</p>
           </div>
 
-          {data.results.map((result, idx) => (
+          {data.results.map((result) => (
             <div 
               key={result.restaurant.id} 
               style={{ 
