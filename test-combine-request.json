@@ -1,0 +1,109 @@
+{
+  "restaurants": [
+    {
+      "id": "ChIJcUlD0eOAhYARucGJj8eN9I8",
+      "types": ["hamburger_restaurant", "restaurant", "food"],
+      "formattedAddress": "333 Jefferson St, San Francisco, CA 94133, USA",
+      "location": {
+        "latitude": 37.8077951,
+        "longitude": -122.41851189999998
+      },
+      "rating": 4.3,
+      "websiteUri": "https://locations.in-n-out.com/154",
+      "priceLevel": "PRICE_LEVEL_INEXPENSIVE",
+      "userRatingCount": 11944,
+      "displayName": {
+        "text": "In-N-Out Burger",
+        "languageCode": "en"
+      }
+    },
+    {
+      "id": "ChIJHXHcEvGAhYARQPuHNN78s78",
+      "types": ["pizza_restaurant", "italian_restaurant", "restaurant"],
+      "formattedAddress": "1570 Stockton St, San Francisco, CA 94133, USA",
+      "location": {
+        "latitude": 37.8003815,
+        "longitude": -122.4090457
+      },
+      "rating": 4.5,
+      "websiteUri": "http://tonyspizzanapoletana.com/",
+      "priceLevel": "PRICE_LEVEL_MODERATE",
+      "userRatingCount": 9384,
+      "displayName": {
+        "text": "Tony's Pizza Napoletana",
+        "languageCode": "en"
+      }
+    }
+  ],
+  "parsedMenus": [
+    {
+      "restaurantUrl": "https://locations.in-n-out.com/154",
+      "menuLinks": [
+        {
+          "text": "Menu",
+          "href": "https://www.in-n-out.com/menu"
+        }
+      ],
+      "parsedMenus": [
+        {
+          "menuName": "Burgers",
+          "items": [
+            {
+              "name": "Double-Double",
+              "description": "Two beef patties, two slices of cheese, lettuce, tomato, onion, spread",
+              "price": "$5.65"
+            },
+            {
+              "name": "Cheeseburger",
+              "description": "Beef patty, cheese, lettuce, tomato, onion, spread",
+              "price": "$4.20"
+            },
+            {
+              "name": "Hamburger",
+              "description": "Beef patty, lettuce, tomato, onion, spread",
+              "price": "$3.80"
+            },
+            {
+              "name": "Protein Style",
+              "description": "Any burger wrapped in lettuce instead of bun",
+              "price": "Same price"
+            }
+          ]
+        }
+      ],
+      "totalItems": 4
+    },
+    {
+      "restaurantUrl": "http://tonyspizzanapoletana.com/",
+      "menuLinks": [],
+      "parsedMenus": [
+        {
+          "menuName": "Pizzas",
+          "items": [
+            {
+              "name": "Margherita",
+              "description": "San Marzano tomatoes, fresh mozzarella, basil",
+              "price": "$22"
+            },
+            {
+              "name": "Pepperoni",
+              "description": "Tomato sauce, mozzarella, pepperoni",
+              "price": "$24"
+            },
+            {
+              "name": "Prosciutto e Arugula",
+              "description": "Mozzarella, prosciutto, arugula, parmesan",
+              "price": "$26"
+            }
+          ]
+        }
+      ],
+      "totalItems": 3
+    }
+  ],
+  "searchParams": {
+    "latitude": "37.7749",
+    "longitude": "-122.4194",
+    "radius": "5"
+  }
+}

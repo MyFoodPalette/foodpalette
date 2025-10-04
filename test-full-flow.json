@@ -1,0 +1,59 @@
+{
+  "restaurants": [
+    {
+      "id": "super-duper-burgers",
+      "displayName": {
+        "text": "Super Duper Burgers"
+      },
+      "formattedAddress": "San Francisco, CA",
+      "location": {
+        "latitude": 37.7749,
+        "longitude": -122.4194
+      },
+      "rating": 4.5,
+      "websiteUri": "https://www.superduperburgers.com/menus/"
+    }
+  ],
+  "parsedMenus": [
+    {
+      "restaurantUrl": "https://www.superduperburgers.com/menus/",
+      "parsedMenus": [
+        {
+          "url": "https://www.superduperburgers.com/menus/",
+          "itemCount": 5,
+          "items": [
+            {
+              "name": "Mini Burger",
+              "description": "One 1/4 lb daily ground, all-natural, vegetarian-fed Brandt Beef patty cooked medium with lettuce, tomato, red onion, and Super Sauce on a freshly baked bun."
+            },
+            {
+              "name": "Super Burger",
+              "description": "Two 1/4 lb daily ground, all-natural, vegetarian-fed Brandt Beef patties cooked medium with lettuce, tomato, red onion, and Super Sauce on a freshly baked bun."
+            },
+            {
+              "name": "Veggie Burger",
+              "description": "Organic Patty with Hummus, Cucumbers & Super Sauce.",
+              "dietaryInfos": ["vegetarian"]
+            },
+            {
+              "name": "GRILLED CHEESE",
+              "description": "Sliced cheddar cheese on our artisanal bun - no burger patty. For the kids.",
+              "dietaryInfos": ["vegetarian"]
+            },
+            {
+              "name": "Dirty Dog Burger",
+              "description": "All natural, daily ground Brandt Farms beef patty, thinly sliced jalapenos, jack cheese, Zoe's bacon, secret pickle relish, on a griddled mustard bun."
+            }
+          ]
+        }
+      ],
+      "totalItems": 5
+    }
+  ],
+  "searchParams": {
+    "latitude": "37.7749",
+    "longitude": "-122.4194",
+    "radius": "5"
+  },
+  "searchQuery": "cheese burger"
+}
