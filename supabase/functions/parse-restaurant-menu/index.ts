@@ -1,41 +1,8 @@
 import { DOMParser } from "jsr:@b-fuze/deno-dom";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-
-interface MenuLink {
-  text: string;
-  href?: string;
-}
-
-interface MenuPage {
-  url: string;
-  text: string;
-  error: string | null;
-}
-
-interface MenuItem {
-  name: string;
-  description?: string;
-  price?: number;
-  categories?: string[];
-  dietaryInfos?: string[];
-  modifiers?: Array<{ name: string; price: number }>;
-}
-
-interface ParsedMenu {
-  url: string;
-  itemCount: number;
-  items: MenuItem[];
-  error?: string;
-}
-
-interface RequestPayload {
-  restaurantUrl: string;
-}
-
 /**
  * Fetch HTML content from URL
- */
-async function fetchHTML(url: string): Promise<string> {
+ */ async function fetchHTML(url) {
   const response = await fetch(url, {
     headers: {
       "User-Agent":
@@ -46,34 +13,26 @@ async function fetchHTML(url: string): Promise<string> {
       Referer: "https://www.google.com/",
     },
   });
-
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} for ${url}`);
   }
-
   return await response.text();
 }
-
 /**
  * Clean text content
- */
-function cleanText(text: string): string {
+ */ function cleanText(text) {
   return text
     .replace(/\s+/g, " ")
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .trim();
 }
-
 /**
  * Extract menu navigation links from restaurant homepage
- */
-function extractMenuLinks(html: string, baseUrl: string): MenuLink[] {
+ */ function extractMenuLinks(html, baseUrl) {
   const doc = new DOMParser().parseFromString(html, "text/html");
   if (!doc) return [];
-
-  const menuLinks: MenuLink[] = [];
-  const seen = new Set<string>();
-
+  const menuLinks: { text: string; href: string }[] = [];
+  const seen = new Set();
   // Menu-related patterns
   const menuPatterns = [
     /\b(menu|menus)\b/i,
@@ -83,112 +42,97 @@ function extractMenuLinks(html: string, baseUrl: string): MenuLink[] {
     /\b(breakfast|brunch|lunch|dinner)\b/i,
     /\b(appetizer|entrée|entree|dessert)\b/i,
   ];
-
   // Find all links
   const links = doc.querySelectorAll("a");
   links.forEach((link) => {
     const text = cleanText(link.textContent || "");
     const href = link.getAttribute("href") || "";
-
     if (!text || text.length > 50) return;
-
     const lowerText = text.toLowerCase();
     const lowerHref = href.toLowerCase();
-
     // Check if link is menu-related
     const isMenuLink = menuPatterns.some(
       (pattern) => pattern.test(lowerText) || pattern.test(lowerHref)
     );
-
     if (isMenuLink) {
       try {
         const absoluteUrl = new URL(href, baseUrl).toString();
         const key = `${text}|${absoluteUrl}`;
-
         if (!seen.has(key)) {
           seen.add(key);
-          menuLinks.push({ text, href: absoluteUrl });
+          menuLinks.push({
+            text,
+            href: absoluteUrl,
+          });
         }
       } catch {
         // Invalid URL, skip
       }
     }
   });
-
   return menuLinks;
 }
-
 /**
  * Extract text content from menu page
- */
-function extractTextContent(html: string): string {
+ */ function extractTextContent(html) {
   const doc = new DOMParser().parseFromString(html, "text/html");
   if (!doc) return "";
-
   // Remove noise elements
   const noiseTags = ["script", "style", "noscript", "nav", "header", "footer"];
   noiseTags.forEach((tag) => {
     const elements = doc.querySelectorAll(tag);
     elements.forEach((el) => el.remove());
   });
-
   // Get main content
   const main =
     doc.querySelector("main") ||
     doc.querySelector("article") ||
     doc.querySelector("body");
   if (!main) return "";
-
   const text = main.textContent || "";
   const lines = text
     .split(/\r?\n/)
     .map((line) => cleanText(line))
     .filter((line) => line.length > 0);
-
   return lines.join("\n");
 }
-
 /**
  * Scrape menu pages
- */
-async function scrapeMenuPages(urls: string[]): Promise<MenuPage[]> {
-  const results = new Map<string, MenuPage>();
-
+ */ async function scrapeMenuPages(urls) {
+  const results = new Map();
   for (const url of urls) {
     try {
       console.log(`Fetching: ${url}`);
       const html = await fetchHTML(url);
       const text = extractTextContent(html);
-
       if (text.length > 0 && !results.has(text)) {
-        results.set(text, { url, text, error: null });
+        results.set(text, {
+          url,
+          text,
+          error: null,
+        });
         console.log(`Extracted ${text.length} characters from ${url}`);
       }
-
       // Rate limiting
       await new Promise((resolve) => setTimeout(resolve, 1000));
     } catch (error) {
-      console.error(`Error scraping ${url}: ${error.message}`);
+      console.error(`Error scraping ${url}: ${error}`);
       results.set(url, {
         url,
         text: "",
-        error: error.message,
+        error: error,
       });
     }
   }
-
   return Array.from(results.values());
 }
-
 /**
  * Parse menu text using OpenAI
- */
-async function parseMenuWithOpenAI(text: string): Promise<MenuItem[]> {
+ */ async function parseMenuWithOpenAI(text) {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY not configured");
   }
-
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -239,13 +183,17 @@ async function parseMenuWithOpenAI(text: string): Promise<MenuItem[]> {
                       },
                       categories: {
                         type: "array",
-                        items: { type: "string" },
+                        items: {
+                          type: "string",
+                        },
                         description:
                           "Menu category (e.g., appetizers, entrees, desserts, drinks, sides)",
                       },
                       dietaryInfos: {
                         type: "array",
-                        items: { type: "string" },
+                        items: {
+                          type: "string",
+                        },
                         description:
                           "Dietary tags like 'vegetarian', 'vegan', 'gluten-free', etc.",
                       },
@@ -254,8 +202,12 @@ async function parseMenuWithOpenAI(text: string): Promise<MenuItem[]> {
                         items: {
                           type: "object",
                           properties: {
-                            name: { type: "string" },
-                            price: { type: "number" },
+                            name: {
+                              type: "string",
+                            },
+                            price: {
+                              type: "number",
+                            },
                           },
                         },
                         description:
@@ -273,40 +225,33 @@ async function parseMenuWithOpenAI(text: string): Promise<MenuItem[]> {
       ],
       tool_choice: {
         type: "function",
-        function: { name: "extract_menu_items" },
+        function: {
+          name: "extract_menu_items",
+        },
       },
     }),
   });
-
   if (!response.ok) {
     throw new Error(
       `OpenAI API error: ${response.status} ${response.statusText}`
     );
   }
-
   const data = await response.json();
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-
   if (!toolCall) {
     throw new Error("No tool call returned from OpenAI");
   }
-
   const result = JSON.parse(toolCall.function.arguments);
   return result.menuItems || [];
 }
-
 /**
  * Main scraping and parsing workflow
- */
-async function scrapeAndParseRestaurant(restaurantUrl: string) {
+ */ async function scrapeAndParseRestaurant(restaurantUrl) {
   console.log(`Starting scrape for: ${restaurantUrl}`);
-
   // Step 1: Find menu links
   const html = await fetchHTML(restaurantUrl);
   const menuLinks = extractMenuLinks(html, restaurantUrl);
-
   console.log(`Found ${menuLinks.length} menu links`);
-
   if (menuLinks.length === 0) {
     return {
       restaurantUrl,
@@ -315,45 +260,43 @@ async function scrapeAndParseRestaurant(restaurantUrl: string) {
       timestamp: new Date().toISOString(),
     };
   }
-
   // Step 2: Scrape menu pages
   const validUrls = menuLinks
     .filter((link) => link.href)
-    .map((link) => link.href!);
+    .map((link) => link.href);
   const menuPages = await scrapeMenuPages(validUrls);
-
   console.log(`Scraped ${menuPages.length} menu pages`);
-
   // Step 3: Parse with OpenAI
-  const parsedMenus: ParsedMenu[] = [];
-
+  const parsedMenus: {
+    url: string;
+    itemCount: number;
+    items: any[];
+    error?: any;
+  }[] = [];
   for (const page of menuPages) {
     if (!page.text || page.error) {
       console.warn(`Skipping ${page.url}: ${page.error || "No text"}`);
       continue;
     }
-
     try {
       console.log(`Parsing menu from: ${page.url}`);
       const menuItems = await parseMenuWithOpenAI(page.text);
       console.log(`Extracted ${menuItems.length} menu items`);
-
       parsedMenus.push({
         url: page.url,
         itemCount: menuItems.length,
         items: menuItems,
       });
     } catch (error) {
-      console.error(`Error parsing ${page.url}:`, error.message);
+      console.error(`Error parsing ${page.url}:`, error);
       parsedMenus.push({
         url: page.url,
         itemCount: 0,
         items: [],
-        error: error.message,
+        error: error,
       });
     }
   }
-
   return {
     restaurantUrl,
     menuLinks,
@@ -362,11 +305,9 @@ async function scrapeAndParseRestaurant(restaurantUrl: string) {
     timestamp: new Date().toISOString(),
   };
 }
-
 /**
  * Edge function handler
- */
-Deno.serve(async (req: Request) => {
+ */ Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -378,13 +319,13 @@ Deno.serve(async (req: Request) => {
       },
     });
   }
-
   try {
-    const { restaurantUrl }: RequestPayload = await req.json();
-
+    const { restaurantUrl } = await req.json();
     if (!restaurantUrl) {
       return new Response(
-        JSON.stringify({ error: "restaurantUrl is required" }),
+        JSON.stringify({
+          error: "restaurantUrl is required",
+        }),
         {
           status: 400,
           headers: {
@@ -394,9 +335,7 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
     const result = await scrapeAndParseRestaurant(restaurantUrl);
-
     return new Response(JSON.stringify(result), {
       status: 200,
       headers: {
