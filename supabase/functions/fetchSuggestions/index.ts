@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
     );
 
     const yelpResults = await fetch(
-      "https://itidgaeetundolqnhfkp.supabase.co/functions/v1/find-restaurants-yelp",
+      `https://itidgaeetundolqnhfkp.supabase.co/functions/v1/find-restaurants-yelp?latitude=${latitude}&longitude=${longitude}&radius=${radius}`,
       {
         method: "POST",
         headers: {
