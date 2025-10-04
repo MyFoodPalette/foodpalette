@@ -13,133 +13,157 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // Get latitude, longitude, and radius from query params (with defaults)
     const url = new URL(req.url);
     const latitude = url.searchParams.get('latitude') || '37.7749';
     const longitude = url.searchParams.get('longitude') || '-122.4194';
     const radius = url.searchParams.get('radius') || '5';
+    const searchQuery = (url.searchParams.get('query') || '').trim();
 
-    // Call the maps-places endpoint to get restaurants
-    const mapsPlacesUrl = `${url.origin}/functions/v1/maps-places?action=findAllRestaurants&latitude=${latitude}&longitude=${longitude}&radius=${radius}&limitToFirstPage=true`;
-    
-    console.log('Calling maps-places endpoint:', mapsPlacesUrl);
-    
-    const mapsResponse = await fetch(mapsPlacesUrl, {
-      headers: {
-        'Authorization': req.headers.get('Authorization') || '',
-      }
-    });
+    console.log('Search query:', searchQuery);
 
-    if (!mapsResponse.ok) {
-      throw new Error(`Maps API error: ${mapsResponse.status}`);
+    if (!searchQuery) {
+      console.warn('Missing search query for fetchSuggestions');
+      return new Response(JSON.stringify({
+        error: 'Missing search query',
+        message: 'Query parameter "query" is required',
+        results: [],
+        metadata: {
+          totalResults: 0,
+          searchRadius: parseInt(radius) || 0,
+          unit: 'miles',
+          searchCenter: {
+            lat: parseFloat(latitude) || 0,
+            lng: parseFloat(longitude) || 0,
+          },
+          timestamp: new Date().toISOString(),
+        },
+      }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
 
-    const mapsData = await mapsResponse.json();
-    
-    // Extract website URLs from the results
-    const websiteUrls: string[] = [];
-    if (mapsData.results && Array.isArray(mapsData.results)) {
-      for (const place of mapsData.results) {
-        if (place.websiteUri) {
-          websiteUrls.push(place.websiteUri);
-        }
-      }
-    }
+    const hardcodedRestaurants = [
+      {
+        id: 'super-duper-burgers',
+        name: 'Super Duper Burgers',
+        url: 'https://www.superduperburgers.com/menus/',
+        address: '98 Mission St, San Francisco, CA 94105',
+        location: {
+          latitude: 37.7891,
+          longitude: -122.3969,
+        },
+      },
+      {
+        id: 'souvla',
+        name: 'Souvla',
+        url: 'https://www.souvla.com/menus',
+        address: '517 Hayes St, San Francisco, CA 94102',
+        location: {
+          latitude: 37.7763,
+          longitude: -122.4242,
+        },
+      },
+      {
+        id: 'the-bird',
+        name: 'The Bird',
+        url: 'https://www.thebirdsf.com/menu',
+        address: '115 New Montgomery St, San Francisco, CA 94105',
+        location: {
+          latitude: 37.7878,
+          longitude: -122.4006,
+        },
+      },
+    ];
 
-    console.log('Extracted website URLs:', websiteUrls);
-    console.log('Total URLs found:', websiteUrls.length);
+    console.log('Using hardcoded restaurants:', hardcodedRestaurants.map(r => r.url));
 
-    // Call parse-restaurant-menu for each URL in parallel
-    const parsePromises = websiteUrls.map(async (websiteUrl) => {
+    const parsePromises = hardcodedRestaurants.map(async (restaurant) => {
+      // Use Supabase project URL for function calls
+      const parseUrl = 'https://itidgaeetundolqnhfkp.supabase.co/functions/v1/parse-restaurant-menu';
       try {
-        const parseUrl = `${url.origin}/functions/v1/parse-restaurant-menu`;
-        console.log(`Parsing menu for: ${websiteUrl}`);
-        
+        console.log(`Parsing menu for: ${restaurant.url}`);
+
         const parseResponse = await fetch(parseUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': req.headers.get('Authorization') || '',
           },
-          body: JSON.stringify({ restaurantUrl: websiteUrl })
+          body: JSON.stringify({ restaurantUrl: restaurant.url }),
         });
 
+        const responseText = await parseResponse.text();
+
         if (!parseResponse.ok) {
-          console.error(`Failed to parse ${websiteUrl}: ${parseResponse.status}`);
-          return null;
+          console.error(`parse-restaurant-menu failed for ${restaurant.url}: ${parseResponse.status}`);
+          return {
+            restaurantName: restaurant.name,
+            restaurantUrl: restaurant.url,
+            menuResponse: responseText,
+            status: 'error',
+            statusCode: parseResponse.status,
+          };
         }
 
-        return await parseResponse.json();
+        console.log(`Received menu response for ${restaurant.name}, length=${responseText.length}`);
+
+        return {
+          restaurantName: restaurant.name,
+          restaurantUrl: restaurant.url,
+          menuResponse: responseText,
+          status: 'success',
+        };
       } catch (error) {
-        console.error(`Error parsing ${websiteUrl}:`, error);
-        return null;
+        console.error(`Error parsing ${restaurant.url}:`, error);
+        return {
+          restaurantName: restaurant.name,
+          restaurantUrl: restaurant.url,
+          menuResponse: '',
+          status: 'error',
+          error: error instanceof Error ? error.message : String(error),
+        };
       }
     });
 
     const parsedMenus = await Promise.all(parsePromises);
-    const validMenus = parsedMenus.filter(menu => menu !== null);
-    
-    console.log(`Successfully parsed ${validMenus.length} menus`);
+    console.log(`parse-restaurant-menu completed for ${parsedMenus.length} restaurants`);
 
-    // Call combineAllResults to generate final response
-    const combineUrl = `${url.origin}/functions/v1/combineAllResults`;
+    // Use Supabase project URL for function calls
+    const combineUrl = 'https://itidgaeetundolqnhfkp.supabase.co/functions/v1/combineAllResults';
     const combinePayload = {
-      restaurants: mapsData.results,
-      parsedMenus: validMenus,
-      searchParams: { latitude, longitude, radius }
+      restaurants: hardcodedRestaurants,
+      parsedMenus,
+      searchParams: {
+        latitude,
+        longitude,
+        radius,
+      },
+      searchQuery,
     };
-    
-    console.log('Calling combineAllResults with:', JSON.stringify({
-      restaurantCount: mapsData.results?.length || 0,
-      parsedMenusCount: validMenus.length,
-      searchParams: { latitude, longitude, radius }
-    }));
-    
+
+    console.log('Sending payload to combineAllResults');
+
     const combineResponse = await fetch(combineUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': req.headers.get('Authorization') || '',
       },
-      body: JSON.stringify(combinePayload)
+      body: JSON.stringify(combinePayload),
     });
 
-    console.log('combineAllResults response status:', combineResponse.status);
+    const combinedText = await combineResponse.text();
 
     if (!combineResponse.ok) {
-      const errorText = await combineResponse.text();
-      console.error('combineAllResults error response:', errorText);
-      throw new Error(`Failed to combine results: ${combineResponse.status} - ${errorText}`);
+      console.error('combineAllResults returned error:', combineResponse.status, combinedText.substring(0, 200));
+      throw new Error(`combineAllResults error ${combineResponse.status}: ${combinedText}`);
     }
 
-    const finalData = await combineResponse.json();
-
-    // Check if we have any results
-    if (!finalData.results || finalData.results.length === 0) {
-      return new Response(JSON.stringify({
-        results: [],
-        metadata: {
-          totalResults: 0,
-          searchRadius: parseInt(radius),
-          unit: 'miles',
-          searchCenter: {
-            lat: parseFloat(latitude),
-            lng: parseFloat(longitude)
-          },
-          timestamp: new Date().toISOString(),
-          message: 'No restaurants with menu data found in this area'
-        }
-      }), {
-        status: 404,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          Connection: 'keep-alive',
-        },
-      });
-    }
-
-    return new Response(JSON.stringify(finalData), {
+    return new Response(combinedText, {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',

@@ -69,6 +69,7 @@ function TestFetchSuggestions() {
   const [latitude, setLatitude] = useState<string>('37.7749')
   const [longitude, setLongitude] = useState<string>('-122.4194')
   const [radius, setRadius] = useState<number>(5)
+  const [preference, setPreference] = useState<string>('cheese burger')
   const [gettingLocation, setGettingLocation] = useState(false)
 
   const getCurrentLocation = () => {
@@ -95,9 +96,14 @@ function TestFetchSuggestions() {
   }
 
   const fetchSuggestions = async () => {
+    if (!preference.trim()) {
+      setError('Enter what you are craving (e.g., "cheese burger")')
+      setData(null)
+      return
+    }
+
     setLoading(true)
     setError(null)
-    
     try {
       // Build query string
       const params = new URLSearchParams({
@@ -105,6 +111,8 @@ function TestFetchSuggestions() {
         longitude,
         radius: radius.toString(),
       })
+
+      params.set('query', preference)
 
       const { data: responseData, error: functionError } = await supabase.functions.invoke(
         `fetchSuggestions?${params.toString()}`,
@@ -149,6 +157,25 @@ function TestFetchSuggestions() {
         borderRadius: '8px',
       }}>
         <h2 style={{ marginTop: 0 }}>Search Parameters</h2>
+
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+            What are you craving?
+          </label>
+          <input
+            type="text"
+            value={preference}
+            onChange={(e) => setPreference(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              fontSize: '1rem',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+            }}
+            placeholder='cheese burger'
+          />
+        </div>
         
         <div style={{ marginBottom: '1rem' }}>
           <button 
