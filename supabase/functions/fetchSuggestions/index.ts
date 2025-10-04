@@ -83,11 +83,6 @@ Deno.serve(async (req: Request) => {
       },
     ];
 
-    console.log(
-      "Using hardcoded restaurants:",
-      hardcodedRestaurants.map((r) => r.url)
-    );
-
     const yelpResults = await fetch(
       `https://itidgaeetundolqnhfkp.supabase.co/functions/v1/find-restaurants-yelp?latitude=${latitude}&longitude=${longitude}&radius=${radius}`,
       {
@@ -101,9 +96,14 @@ Deno.serve(async (req: Request) => {
 
     const yelpResultsData = await yelpResults.json();
 
-    console.log("Yelp results:", yelpResultsData);
+    const yelpRestaurants = yelpResultsData.filter(
+      (r: any) => r.url !== "NOT_FOUND"
+    );
 
-    const parsePromises = hardcodedRestaurants.map(async (restaurant) => {
+    const restaurants =
+      yelpRestaurants.length > 0 ? yelpRestaurants : hardcodedRestaurants;
+
+    const parsePromises = restaurants.map(async (restaurant) => {
       // Use Supabase project URL for function calls
       const parseUrl =
         "https://itidgaeetundolqnhfkp.supabase.co/functions/v1/parse-restaurant-menu";
@@ -151,7 +151,7 @@ Deno.serve(async (req: Request) => {
           restaurantUrl: restaurant.url,
           menuResponse: "",
           status: "error",
-          error: error instanceof Error ? error.message : String(error),
+          error: error instanceof Error ? error : String(error),
         };
       }
     });
@@ -210,18 +210,18 @@ Deno.serve(async (req: Request) => {
     console.error("Error in fetchSuggestions:", error);
     console.error(
       "Error details:",
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error ? error : String(error)
     );
     console.error(
       "Error stack:",
-      error instanceof Error ? error.stack : "No stack trace"
+      error instanceof Error ? error : "No stack trace"
     );
 
     // Return error response instead of fallback data
     return new Response(
       JSON.stringify({
         error: "Failed to fetch suggestions",
-        message: error instanceof Error ? error.message : String(error),
+        message: error instanceof Error ? error : String(error),
         results: [],
         metadata: {
           totalResults: 0,
