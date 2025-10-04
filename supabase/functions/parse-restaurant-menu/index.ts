@@ -438,7 +438,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
     console.error("Error:", error);
     return new Response(
       JSON.stringify({
-        error: error.message || "Internal server error",
+        error: error || "Internal server error",
       }),
       {
         status: 500,

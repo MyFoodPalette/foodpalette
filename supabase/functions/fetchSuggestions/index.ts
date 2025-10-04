@@ -20,6 +20,11 @@ Deno.serve(async (req: Request) => {
     const radius = url.searchParams.get("radius") || "5";
     const searchQuery = (url.searchParams.get("query") || "").trim();
 
+    // Use SUPABASE_URL env var for calling other functions (works for both local and production)
+    const supabaseUrl =
+      Deno.env.get("SUPABASE_URL") ||
+      "https://itidgaeetundolqnhfkp.supabase.co";
+
     console.log("Search query:", searchQuery);
 
     if (!searchQuery) {
@@ -84,7 +89,7 @@ Deno.serve(async (req: Request) => {
     ];
 
     const yelpResults = await fetch(
-      `https://itidgaeetundolqnhfkp.supabase.co/functions/v1/find-restaurants-yelp?latitude=${latitude}&longitude=${longitude}&radius=${radius}`,
+      `${supabaseUrl}/functions/v1/find-restaurants-yelp?latitude=${latitude}&longitude=${longitude}&radius=${radius}`,
       {
         method: "POST",
         headers: {
@@ -104,9 +109,7 @@ Deno.serve(async (req: Request) => {
       yelpRestaurants.length > 0 ? yelpRestaurants : hardcodedRestaurants;
 
     const parsePromises = restaurants.map(async (restaurant) => {
-      // Use Supabase project URL for function calls
-      const parseUrl =
-        "https://itidgaeetundolqnhfkp.supabase.co/functions/v1/parse-restaurant-menu";
+      const parseUrl = `${supabaseUrl}/functions/v1/parse-restaurant-menu`;
       try {
         console.log(`Parsing menu for: ${restaurant.url}`);
 
@@ -161,9 +164,7 @@ Deno.serve(async (req: Request) => {
       `parse-restaurant-menu completed for ${parsedMenus.length} restaurants`
     );
 
-    // Use Supabase project URL for function calls
-    const combineUrl =
-      "https://itidgaeetundolqnhfkp.supabase.co/functions/v1/combineAllResults";
+    const combineUrl = `${supabaseUrl}/functions/v1/combineAllResults`;
     const combinePayload = {
       restaurants: hardcodedRestaurants,
       parsedMenus,
