@@ -20,7 +20,7 @@ Deno.serve(async (req: Request) => {
     const radius = url.searchParams.get('radius') || '5';
 
     // Call the maps-places endpoint to get restaurants
-    const mapsPlacesUrl = `${url.origin.replace(url.pathname, '')}/maps-places?action=findAllRestaurants&latitude=${latitude}&longitude=${longitude}&radius=${radius}&limitToFirstPage=true`;
+    const mapsPlacesUrl = `${url.origin}/functions/v1/maps-places?action=findAllRestaurants&latitude=${latitude}&longitude=${longitude}&radius=${radius}&limitToFirstPage=true`;
     
     console.log('Calling maps-places endpoint:', mapsPlacesUrl);
     
@@ -49,139 +49,127 @@ Deno.serve(async (req: Request) => {
     console.log('Extracted website URLs:', websiteUrls);
     console.log('Total URLs found:', websiteUrls.length);
 
-    // TODO: Continue with menu parsing using these URLs
-    // For now, return the URLs along with the hard-coded example data
+    // Call parse-restaurant-menu for each URL in parallel
+    const parsePromises = websiteUrls.map(async (websiteUrl) => {
+      try {
+        const parseUrl = `${url.origin}/functions/v1/parse-restaurant-menu`;
+        console.log(`Parsing menu for: ${websiteUrl}`);
+        
+        const parseResponse = await fetch(parseUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': req.headers.get('Authorization') || '',
+          },
+          body: JSON.stringify({ restaurantUrl: websiteUrl })
+        });
+
+        if (!parseResponse.ok) {
+          console.error(`Failed to parse ${websiteUrl}: ${parseResponse.status}`);
+          return null;
+        }
+
+        return await parseResponse.json();
+      } catch (error) {
+        console.error(`Error parsing ${websiteUrl}:`, error);
+        return null;
+      }
+    });
+
+    const parsedMenus = await Promise.all(parsePromises);
+    const validMenus = parsedMenus.filter(menu => menu !== null);
+    
+    console.log(`Successfully parsed ${validMenus.length} menus`);
+
+    // Call combineAllResults to generate final response
+    const combineUrl = `${url.origin}/functions/v1/combineAllResults`;
+    const combinePayload = {
+      restaurants: mapsData.results,
+      parsedMenus: validMenus,
+      searchParams: { latitude, longitude, radius }
+    };
+    
+    console.log('Calling combineAllResults with:', JSON.stringify({
+      restaurantCount: mapsData.results?.length || 0,
+      parsedMenusCount: validMenus.length,
+      searchParams: { latitude, longitude, radius }
+    }));
+    
+    const combineResponse = await fetch(combineUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.get('Authorization') || '',
+      },
+      body: JSON.stringify(combinePayload)
+    });
+
+    console.log('combineAllResults response status:', combineResponse.status);
+
+    if (!combineResponse.ok) {
+      const errorText = await combineResponse.text();
+      console.error('combineAllResults error response:', errorText);
+      throw new Error(`Failed to combine results: ${combineResponse.status} - ${errorText}`);
+    }
+
+    const finalData = await combineResponse.json();
+
+    // Check if we have any results
+    if (!finalData.results || finalData.results.length === 0) {
+      return new Response(JSON.stringify({
+        results: [],
+        metadata: {
+          totalResults: 0,
+          searchRadius: parseInt(radius),
+          unit: 'miles',
+          searchCenter: {
+            lat: parseFloat(latitude),
+            lng: parseFloat(longitude)
+          },
+          timestamp: new Date().toISOString(),
+          message: 'No restaurants with menu data found in this area'
+        }
+      }), {
+        status: 404,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          Connection: 'keep-alive',
+        },
+      });
+    }
+
+    return new Response(JSON.stringify(finalData), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        Connection: 'keep-alive',
+      },
+    });
 
   } catch (error) {
-    console.error('Error fetching restaurants:', error);
-    // Fall back to example data if there's an error
-  }
-
-  // Hard-coded example response data
-  const data = {
-    "results": [
-      {
-        "restaurant": {
-          "name": "Noels Diner",
-          "id": "rest_12345",
-          "rating": 4.5,
-          "cuisine": "American",
-          "distance": 0.8,
-          "distanceUnit": "miles"
-        },
-        "location": {
-          "lat": 37.7823,
-          "lng": -122.4145,
-          "address": "123 Market St, San Francisco, CA"
-        },
-        "matchingItems": [
-          {
-            "name": "Power Protein Bowl",
-            "price": 12.99,
-            "matchScore": 0.95,
-            "ingredients": "Grilled chicken breast, brown rice, black beans, avocado, corn, cilantro lime dressing, mixed greens",
-            "nutrition": {
-              "calories": 520,
-              "protein": "45g",
-              "carbs": "52g",
-              "fat": "14g"
-            },
-            "tags": ["high-protein", "healthy", "gluten-free"]
-          },
-          {
-            "name": "Chicken & Rice Bowl",
-            "price": 10.99,
-            "matchScore": 0.88,
-            "ingredients": "Seasoned chicken thighs, jasmine rice, steamed broccoli, carrots, teriyaki sauce",
-            "nutrition": {
-              "calories": 480,
-              "protein": "38g",
-              "carbs": "58g",
-              "fat": "10g"
-            },
-            "tags": ["high-protein", "asian-inspired"]
-          }
-        ]
-      },
-      {
-        "restaurant": {
-          "name": "FitFuel Kitchen",
-          "id": "rest_67890",
-          "rating": 4.8,
-          "cuisine": "Healthy Fast Casual",
-          "distance": 1.2,
-          "distanceUnit": "miles"
-        },
-        "location": {
-          "lat": 37.7698,
-          "lng": -122.4312,
-          "address": "456 Valencia St, San Francisco, CA"
-        },
-        "matchingItems": [
-          {
-            "name": "Athletic Performance Bowl",
-            "price": 14.50,
-            "matchScore": 0.92,
-            "ingredients": "Double grilled chicken, quinoa, brown rice blend, roasted sweet potato, spinach, tahini dressing",
-            "nutrition": {
-              "calories": 580,
-              "protein": "52g",
-              "carbs": "62g",
-              "fat": "12g"
-            },
-            "tags": ["high-protein", "macro-friendly", "dairy-free"]
-          }
-        ]
-      },
-      {
-        "restaurant": {
-          "name": "Mediterranean Grill",
-          "id": "rest_11223",
-          "rating": 4.3,
-          "cuisine": "Mediterranean",
-          "distance": 2.1,
-          "distanceUnit": "miles"
-        },
-        "location": {
-          "lat": 37.7580,
-          "lng": -122.4375,
-          "address": "789 Mission St, San Francisco, CA"
-        },
-        "matchingItems": [
-          {
-            "name": "Chicken Shawarma Rice Plate",
-            "price": 13.75,
-            "matchScore": 0.85,
-            "ingredients": "Marinated chicken shawarma, basmati rice, hummus, cucumber tomato salad, garlic sauce, pita bread",
-            "nutrition": {
-              "calories": 650,
-              "protein": "42g",
-              "carbs": "68g",
-              "fat": "20g"
-            },
-            "tags": ["high-protein", "mediterranean"]
-          }
-        ]
+    console.error('Error in fetchSuggestions:', error);
+    console.error('Error details:', error instanceof Error ? error.message : String(error));
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    // Return error response instead of fallback data
+    return new Response(JSON.stringify({
+      error: 'Failed to fetch suggestions',
+      message: error instanceof Error ? error.message : String(error),
+      results: [],
+      metadata: {
+        totalResults: 0,
+        searchRadius: 0,
+        unit: 'miles',
+        searchCenter: { lat: 0, lng: 0 },
+        timestamp: new Date().toISOString()
       }
-    ],
-    "metadata": {
-      "totalResults": 3,
-      "searchRadius": 5,
-      "unit": "miles",
-      "searchCenter": {
-        "lat": 37.7749,
-        "lng": -122.4194
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
       },
-      "timestamp": "2025-10-04T14:30:00Z"
-    }
+    });
   }
-
-  return new Response(JSON.stringify(data), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      Connection: 'keep-alive',
-    },
-  })
-})
-
+});

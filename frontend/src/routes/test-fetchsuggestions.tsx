@@ -52,29 +52,82 @@ interface Metadata {
     lng: number
   }
   timestamp: string
+  message?: string
 }
 
 interface FetchSuggestionsResponse {
   results: Result[]
   metadata: Metadata
+  error?: string
+  message?: string
 }
 
 function TestFetchSuggestions() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<FetchSuggestionsResponse | null>(null)
+  const [latitude, setLatitude] = useState<string>('37.7749')
+  const [longitude, setLongitude] = useState<string>('-122.4194')
+  const [radius, setRadius] = useState<number>(5)
+  const [gettingLocation, setGettingLocation] = useState(false)
+
+  const getCurrentLocation = () => {
+    setGettingLocation(true)
+    setError(null)
+
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser')
+      setGettingLocation(false)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLatitude(position.coords.latitude.toString())
+        setLongitude(position.coords.longitude.toString())
+        setGettingLocation(false)
+      },
+      (err) => {
+        setError(`Error getting location: ${err.message}`)
+        setGettingLocation(false)
+      }
+    )
+  }
 
   const fetchSuggestions = async () => {
     setLoading(true)
     setError(null)
     
     try {
-      const { data: responseData, error: functionError } = await supabase.functions.invoke('fetchSuggestions', {
-        body: {},
+      // Build query string
+      const params = new URLSearchParams({
+        latitude,
+        longitude,
+        radius: radius.toString(),
       })
+
+      const { data: responseData, error: functionError } = await supabase.functions.invoke(
+        `fetchSuggestions?${params.toString()}`,
+        {
+          method: 'GET',
+        }
+      )
 
       if (functionError) {
         throw functionError
+      }
+
+      // Check if response has error or no results
+      if (responseData?.error) {
+        setError(responseData.message || responseData.error)
+        setData(null)
+        return
+      }
+
+      if (responseData?.results?.length === 0) {
+        setError(responseData.metadata?.message || 'No restaurants found in this area')
+        setData(null)
+        return
       }
 
       setData(responseData)
@@ -86,24 +139,128 @@ function TestFetchSuggestions() {
   }
 
   return (
-    <div style={{ padding: '2rem' }}>
+    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
       <h1>Test Fetch Suggestions</h1>
       
-      <button 
-        onClick={fetchSuggestions} 
-        disabled={loading}
-        style={{
-          padding: '0.5rem 1rem',
-          fontSize: '1rem',
-          cursor: loading ? 'not-allowed' : 'pointer',
-          backgroundColor: '#646cff',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-        }}
-      >
-        {loading ? 'Loading...' : 'Fetch Suggestions'}
-      </button>
+      <div style={{ 
+        marginBottom: '2rem', 
+        padding: '1.5rem', 
+        backgroundColor: '#f5f5f5',
+        borderRadius: '8px',
+      }}>
+        <h2 style={{ marginTop: 0 }}>Search Parameters</h2>
+        
+        <div style={{ marginBottom: '1rem' }}>
+          <button 
+            onClick={getCurrentLocation} 
+            disabled={gettingLocation}
+            style={{
+              padding: '0.5rem 1rem',
+              fontSize: '1rem',
+              cursor: gettingLocation ? 'not-allowed' : 'pointer',
+              backgroundColor: '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              marginBottom: '1rem',
+            }}
+          >
+            {gettingLocation ? 'Getting Location...' : '📍 Use My Location'}
+          </button>
+        </div>
+
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '1fr 1fr', 
+          gap: '1rem',
+          marginBottom: '1rem',
+        }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              Latitude:
+            </label>
+            <input
+              type="text"
+              value={latitude}
+              onChange={(e) => setLatitude(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                fontSize: '1rem',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+              }}
+              placeholder="37.7749"
+            />
+          </div>
+          
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              Longitude:
+            </label>
+            <input
+              type="text"
+              value={longitude}
+              onChange={(e) => setLongitude(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                fontSize: '1rem',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+              }}
+              placeholder="-122.4194"
+            />
+          </div>
+        </div>
+
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
+            Search Radius: {radius} miles
+          </label>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            step="0.5"
+            value={radius}
+            onChange={(e) => setRadius(parseFloat(e.target.value))}
+            style={{
+              width: '100%',
+              height: '8px',
+              cursor: 'pointer',
+            }}
+          />
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between',
+            fontSize: '0.875rem',
+            color: '#666',
+            marginTop: '0.25rem',
+          }}>
+            <span>1 mile</span>
+            <span>10 miles</span>
+          </div>
+        </div>
+
+        <button 
+          onClick={fetchSuggestions} 
+          disabled={loading}
+          style={{
+            padding: '0.75rem 2rem',
+            fontSize: '1.1rem',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            backgroundColor: loading ? '#999' : '#646cff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            width: '100%',
+            fontWeight: 'bold',
+          }}
+        >
+          {loading ? '🔄 Searching Restaurants...' : '🔍 Fetch Suggestions'}
+        </button>
+      </div>
 
       {error && (
         <div style={{ 
