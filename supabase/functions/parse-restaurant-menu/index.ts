@@ -163,7 +163,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
       url,
       text: "",
       pdfLinks: [],
-      error: error.message || String(error),
+      error: error || String(error),
     };
   }
 }
@@ -340,7 +340,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
       url: page.url,
       itemCount: 0,
       items: [],
-      error: error.message || String(error),
+      error: error || String(error),
     };
   }
 }
