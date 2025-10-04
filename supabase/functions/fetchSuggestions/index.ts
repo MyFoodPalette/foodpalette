@@ -49,15 +49,73 @@ Deno.serve(async (req: Request) => {
     console.log('Extracted website URLs:', websiteUrls);
     console.log('Total URLs found:', websiteUrls.length);
 
-    // TODO: Continue with menu parsing using these URLs
-    // For now, return the URLs along with the hard-coded example data
+    // Call parse-restaurant-menu for each URL in parallel
+    const parsePromises = websiteUrls.map(async (websiteUrl) => {
+      try {
+        const parseUrl = `${url.origin.replace(url.pathname, '')}/parse-restaurant-menu`;
+        console.log(`Parsing menu for: ${websiteUrl}`);
+        
+        const parseResponse = await fetch(parseUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': req.headers.get('Authorization') || '',
+          },
+          body: JSON.stringify({ restaurantUrl: websiteUrl })
+        });
+
+        if (!parseResponse.ok) {
+          console.error(`Failed to parse ${websiteUrl}: ${parseResponse.status}`);
+          return null;
+        }
+
+        return await parseResponse.json();
+      } catch (error) {
+        console.error(`Error parsing ${websiteUrl}:`, error);
+        return null;
+      }
+    });
+
+    const parsedMenus = await Promise.all(parsePromises);
+    const validMenus = parsedMenus.filter(menu => menu !== null);
+    
+    console.log(`Successfully parsed ${validMenus.length} menus`);
+
+    // Call combineAllResults to generate final response
+    const combineUrl = `${url.origin.replace(url.pathname, '')}/combineAllResults`;
+    const combineResponse = await fetch(combineUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': req.headers.get('Authorization') || '',
+      },
+      body: JSON.stringify({
+        restaurants: mapsData.results,
+        parsedMenus: validMenus,
+        searchParams: { latitude, longitude, radius }
+      })
+    });
+
+    if (!combineResponse.ok) {
+      throw new Error(`Failed to combine results: ${combineResponse.status}`);
+    }
+
+    const finalData = await combineResponse.json();
+
+    return new Response(JSON.stringify(finalData), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        Connection: 'keep-alive',
+      },
+    });
 
   } catch (error) {
-    console.error('Error fetching restaurants:', error);
+    console.error('Error in fetchSuggestions:', error);
     // Fall back to example data if there's an error
   }
 
-  // Hard-coded example response data
+  // Hard-coded example response data (fallback)
   const data = {
     "results": [
       {
