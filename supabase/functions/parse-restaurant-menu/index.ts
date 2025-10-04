@@ -320,7 +320,37 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
     });
   }
   try {
-    const { restaurantUrl } = await req.json();
+    console.log('parse-restaurant-menu: Parsing request body...');
+    
+    let requestData;
+    try {
+      const bodyText = await req.text();
+      console.log('parse-restaurant-menu: Body length:', bodyText.length);
+      console.log('parse-restaurant-menu: First 200 chars:', bodyText.substring(0, 200));
+      
+      if (!bodyText || bodyText.trim() === '') {
+        throw new Error('Request body is empty');
+      }
+      
+      requestData = JSON.parse(bodyText);
+    } catch (parseError) {
+      console.error('parse-restaurant-menu: Failed to parse body:', parseError);
+      return new Response(
+        JSON.stringify({
+          error: "Invalid request body",
+          message: parseError instanceof Error ? parseError.message : String(parseError),
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+    
+    const { restaurantUrl } = requestData;
     if (!restaurantUrl) {
       return new Response(
         JSON.stringify({
