@@ -1,4 +1,4 @@
-console.info('combineAllResults function started')
+console.info("combineAllResults function started");
 
 interface RawMenuResponse {
   restaurantName?: string;
@@ -23,53 +23,87 @@ interface CombineRequest {
 
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, {
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers":
+          "Content-Type, Authorization, x-client-info, apikey",
       },
-    })
+    });
   }
 
   try {
-    console.log('combineAllResults: Parsing request body...');
-    console.log('combineAllResults: Content-Type:', req.headers.get('Content-Type'));
-    console.log('combineAllResults: Content-Length:', req.headers.get('Content-Length'));
-    
+    console.log("combineAllResults: Parsing request body...");
+    console.log(
+      "combineAllResults: Content-Type:",
+      req.headers.get("Content-Type")
+    );
+    console.log(
+      "combineAllResults: Content-Length:",
+      req.headers.get("Content-Length")
+    );
+
     let requestData;
     try {
       const bodyText = await req.text();
-      console.log('combineAllResults: Body length:', bodyText.length);
-      console.log('combineAllResults: First 200 chars:', bodyText.substring(0, 200));
+      console.log("combineAllResults: Body length:", bodyText.length);
+      console.log(
+        "combineAllResults: First 200 chars:",
+        bodyText.substring(0, 200)
+      );
       requestData = JSON.parse(bodyText);
     } catch (parseError) {
-      console.error('combineAllResults: Failed to parse body:', parseError);
-      throw new Error(`Failed to parse request body: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      console.error("combineAllResults: Failed to parse body:", parseError);
+      throw new Error(
+        `Failed to parse request body: ${
+          parseError instanceof Error ? parseError.message : String(parseError)
+        }`
+      );
     }
-    
-    console.log('combineAllResults: Request body parsed successfully');
-    
-    const { restaurants, parsedMenus, searchParams, searchQuery }: CombineRequest = requestData;
-    
-    console.log(`Combining data from ${restaurants?.length || 0} restaurants and ${parsedMenus?.length || 0} parsed menus`);
-    console.log(`Search query: "${searchQuery || 'none'}"`);
 
-    const hasMenuData = Array.isArray(parsedMenus) && parsedMenus.length > 0 &&
+    console.log("combineAllResults: Request body parsed successfully");
+
+    const {
+      restaurants,
+      parsedMenus,
+      searchParams,
+      searchQuery,
+    }: CombineRequest = requestData;
+
+    console.log(
+      `Combining data from ${restaurants?.length || 0} restaurants and ${
+        parsedMenus?.length || 0
+      } parsed menus`
+    );
+    console.log(`Search query: "${searchQuery || "none"}"`);
+
+    const hasMenuData =
+      Array.isArray(parsedMenus) &&
+      parsedMenus.length > 0 &&
       parsedMenus.some((menu) => {
         if (!menu) return false;
-        if (typeof menu === 'string') {
+        if (typeof menu === "string") {
           return menu.trim().length > 0;
         }
-        if (typeof menu === 'object') {
+        if (typeof menu === "object") {
           const typedMenu = menu as RawMenuResponse;
-          const maybeResponse = typeof typedMenu.menuResponse === 'string' ? typedMenu.menuResponse : '';
+          const maybeResponse =
+            typeof typedMenu.menuResponse === "string"
+              ? typedMenu.menuResponse
+              : "";
           if (maybeResponse && maybeResponse.trim().length > 0) {
             return true;
           }
-          if ('parsedMenus' in typedMenu && Array.isArray((typedMenu as Record<string, unknown>).parsedMenus)) {
-            if (((typedMenu as Record<string, unknown>).parsedMenus as unknown[]).length > 0) {
+          if (
+            "parsedMenus" in typedMenu &&
+            Array.isArray((typedMenu as Record<string, unknown>).parsedMenus)
+          ) {
+            if (
+              ((typedMenu as Record<string, unknown>).parsedMenus as unknown[])
+                .length > 0
+            ) {
               return true;
             }
           }
@@ -81,67 +115,83 @@ Deno.serve(async (req: Request) => {
       });
 
     if (!restaurants || restaurants.length === 0 || !hasMenuData) {
-      console.log('No restaurants or menu data available, returning empty results');
-      return new Response(JSON.stringify({
-        results: [],
-        metadata: {
-          totalResults: 0,
-          searchRadius: parseInt(searchParams.radius) || 5,
-          unit: 'miles',
-          searchCenter: {
-            lat: parseFloat(searchParams.latitude) || 0,
-            lng: parseFloat(searchParams.longitude) || 0
+      console.log(
+        "No restaurants or menu data available, returning empty results"
+      );
+      return new Response(
+        JSON.stringify({
+          results: [],
+          metadata: {
+            totalResults: 0,
+            searchRadius: parseInt(searchParams.radius) || 5,
+            unit: "miles",
+            searchCenter: {
+              lat: parseFloat(searchParams.latitude) || 0,
+              lng: parseFloat(searchParams.longitude) || 0,
+            },
+            timestamp: new Date().toISOString(),
           },
-          timestamp: new Date().toISOString()
+        }),
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
         }
-      }), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
+      );
     }
 
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
     if (!openaiApiKey) {
-      throw new Error('OPENAI_API_KEY not configured');
+      throw new Error("OPENAI_API_KEY not configured");
     }
 
-    const parsedMenuContext = (parsedMenus || []).map((entry, index) => {
-      if (!entry) {
-        return `Restaurant ${index + 1}: No data`;
-      }
+    const parsedMenuContext = (parsedMenus || [])
+      .map((entry, index) => {
+        if (!entry) {
+          return `Restaurant ${index + 1}: No data`;
+        }
 
-      const fallbackName = restaurants?.[index]?.name || `Restaurant ${index + 1}`;
-      const fallbackUrl = restaurants?.[index]?.url || restaurants?.[index]?.website || '';
+        const fallbackName =
+          restaurants?.[index]?.name || `Restaurant ${index + 1}`;
+        const fallbackUrl =
+          restaurants?.[index]?.url || restaurants?.[index]?.website || "";
 
-      if (typeof entry === 'string') {
-        const trimmed = entry.trim();
-        return `Restaurant: ${fallbackName}
+        if (typeof entry === "string") {
+          const trimmed = entry.trim();
+          return `Restaurant: ${fallbackName}
 URL: ${fallbackUrl}
 Status: raw-string
 Raw Menu Response:
 ${trimmed}`;
-      }
+        }
 
-      const typedEntry = entry as RawMenuResponse;
-      const name = typedEntry.restaurantName || fallbackName;
-      const url = typedEntry.restaurantUrl || fallbackUrl;
-      const status = typedEntry.status || (typedEntry.error ? 'error' : 'success');
-      const errorDetails = typedEntry.error ? `
-Reported Error: ${typedEntry.error}` : '';
-      const codeDetails = typedEntry.statusCode ? ` (HTTP ${typedEntry.statusCode})` : '';
+        const typedEntry = entry as RawMenuResponse;
+        const name = typedEntry.restaurantName || fallbackName;
+        const url = typedEntry.restaurantUrl || fallbackUrl;
+        const status =
+          typedEntry.status || (typedEntry.error ? "error" : "success");
+        const errorDetails = typedEntry.error
+          ? `
+Reported Error: ${typedEntry.error}`
+          : "";
+        const codeDetails = typedEntry.statusCode
+          ? ` (HTTP ${typedEntry.statusCode})`
+          : "";
 
-      const rawMenu = typeof typedEntry.menuResponse === 'string' && typedEntry.menuResponse.trim().length > 0
-        ? typedEntry.menuResponse.trim()
-        : JSON.stringify(typedEntry, null, 2);
+        const rawMenu =
+          typeof typedEntry.menuResponse === "string" &&
+          typedEntry.menuResponse.trim().length > 0
+            ? typedEntry.menuResponse.trim()
+            : JSON.stringify(typedEntry, null, 2);
 
-      return `Restaurant: ${name}
+        return `Restaurant: ${name}
 URL: ${url}
 Status: ${status}${codeDetails}${errorDetails}
 Raw Menu Response:
 ${rawMenu}`;
-    }).join('\n\n---\n\n');
+      })
+      .join("\n\n---\n\n");
 
     // Prepare the prompt for OpenAI
     const systemPrompt = `You are a restaurant menu analyzer. Your task is to combine restaurant information from Google Places API with parsed menu data to produce a structured JSON response.
@@ -203,7 +253,11 @@ Rules:
 8. If data is missing, use empty strings or reasonable defaults
 9. Some menu entries contain a field named "menuResponse" that holds raw JSON text returned from another system. Parse that string when needed to understand the menu content.
 10. Return ONLY valid JSON, no markdown or explanations
-${searchQuery ? `11. IMPORTANT: Filter menu items to only include those that match or are relevant to the search query: "${searchQuery}". Only return items that contain the search terms or are semantically related.` : ''}`;
+${
+  searchQuery
+    ? `11. IMPORTANT: Filter menu items to only include those that match or are relevant to the search query: "${searchQuery}". Only return items that contain the search terms or are semantically related.`
+    : ""
+}`;
 
     const userPrompt = `Restaurant Data from Google Places:
 ${JSON.stringify(restaurants, null, 2)}
@@ -215,80 +269,99 @@ Search Parameters:
 - Latitude: ${searchParams.latitude}
 - Longitude: ${searchParams.longitude}
 - Radius: ${searchParams.radius} miles
-${searchQuery ? `- Search Query: "${searchQuery}" (ONLY return menu items matching this query)` : ''}
+${
+  searchQuery
+    ? `- Search Query: "${searchQuery}" (ONLY return menu items matching this query)`
+    : ""
+}
 
-Please combine this data into the required JSON format. Focus on creating meaningful matchingItems for each restaurant based on their parsed menu data.${searchQuery ? ` FILTER the results to only show items matching the search query "${searchQuery}".` : ''}`;
+Please combine this data into the required JSON format. Focus on creating meaningful matchingItems for each restaurant based on their parsed menu data.${
+      searchQuery
+        ? ` FILTER the results to only show items matching the search query "${searchQuery}".`
+        : ""
+    }`;
 
-    console.log('Calling OpenAI API...');
+    console.log("Calling OpenAI API...");
 
-    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiApiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
-        response_format: { type: 'json_object' }
-      })
-    });
+    const openaiResponse = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openaiApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.7,
+          response_format: { type: "json_object" },
+        }),
+      }
+    );
 
     if (!openaiResponse.ok) {
       const errorText = await openaiResponse.text();
-      throw new Error(`OpenAI API error: ${openaiResponse.status} - ${errorText}`);
+      throw new Error(
+        `OpenAI API error: ${openaiResponse.status} - ${errorText}`
+      );
     }
 
     const openaiData = await openaiResponse.json();
-    console.log('OpenAI response received, parsing content...');
-    
+    console.log("OpenAI response received, parsing content...");
+
     const content = openaiData.choices?.[0]?.message?.content;
     if (!content) {
-      throw new Error('OpenAI returned empty content');
+      throw new Error("OpenAI returned empty content");
     }
-    
+
     let generatedResponse;
     try {
       generatedResponse = JSON.parse(content);
     } catch (parseError) {
-      console.error('Failed to parse OpenAI response:', content);
-      throw new Error(`Invalid JSON from OpenAI: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      console.error("Failed to parse OpenAI response:", content);
+      throw new Error(
+        `Invalid JSON from OpenAI: ${
+          parseError instanceof Error ? parseError : String(parseError)
+        }`
+      );
     }
 
-    console.log('Successfully generated combined response');
+    console.log("Successfully generated combined response");
 
     return new Response(JSON.stringify(generatedResponse), {
       headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        Connection: 'keep-alive',
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        Connection: "keep-alive",
       },
     });
-
   } catch (error) {
-    console.error('Error in combineAllResults:', error);
-    
-    return new Response(JSON.stringify({
-      error: 'Failed to combine results',
-      message: error instanceof Error ? error.message : String(error),
-      results: [],
-      metadata: {
-        totalResults: 0,
-        searchRadius: 0,
-        unit: 'miles',
-        searchCenter: { lat: 0, lng: 0 },
-        timestamp: new Date().toISOString()
+    console.error("Error in combineAllResults:", error);
+
+    return new Response(
+      JSON.stringify({
+        error: "Failed to combine results",
+        message: error instanceof Error ? error : String(error),
+        results: [],
+        metadata: {
+          totalResults: 0,
+          searchRadius: 0,
+          unit: "miles",
+          searchCenter: { lat: 0, lng: 0 },
+          timestamp: new Date().toISOString(),
+        },
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
       }
-    }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
+    );
   }
 });
