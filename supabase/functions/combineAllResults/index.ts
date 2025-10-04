@@ -58,7 +58,7 @@ Deno.serve(async (req: Request) => {
       console.error("combineAllResults: Failed to parse body:", parseError);
       throw new Error(
         `Failed to parse request body: ${
-          parseError instanceof Error ? parseError.message : String(parseError)
+          parseError instanceof Error ? parseError : String(parseError)
         }`
       );
     }

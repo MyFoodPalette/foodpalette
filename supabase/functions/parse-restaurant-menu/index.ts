@@ -163,7 +163,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
       url,
       text: "",
       pdfLinks: [],
-      error: error.message || String(error),
+      error: error || String(error),
     };
   }
 }
@@ -340,7 +340,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
       url: page.url,
       itemCount: 0,
       items: [],
-      error: error.message || String(error),
+      error: error || String(error),
     };
   }
 }
@@ -438,7 +438,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
     console.error("Error:", error);
     return new Response(
       JSON.stringify({
-        error: error.message || "Internal server error",
+        error: error || "Internal server error",
       }),
       {
         status: 500,

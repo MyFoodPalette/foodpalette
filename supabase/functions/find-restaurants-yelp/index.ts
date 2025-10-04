@@ -320,7 +320,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         error: "Failed to find restaurants",
-        message: error instanceof Error ? error.message : String(error),
+        message: error instanceof Error ? error : String(error),
       }),
       {
         status: 500,
