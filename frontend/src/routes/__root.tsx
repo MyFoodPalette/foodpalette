@@ -15,7 +15,7 @@ export const Route = createRootRoute({
         </nav>
       </div>
       <Outlet />
-      <TanStackRouterDevtools />
+      {import.meta.env.DEV && <TanStackRouterDevtools />}
     </>
   ),
 })
