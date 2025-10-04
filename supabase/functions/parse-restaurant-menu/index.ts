@@ -1,22 +1,29 @@
 import { DOMParser } from "jsr:@b-fuze/deno-dom";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 /**
- * Fetch HTML content from URL
- */ async function fetchHTML(url) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.5",
-      Referer: "https://www.google.com/",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} for ${url}`);
+ * Fetch HTML content from URL with timeout
+ */ async function fetchHTML(url, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        Referer: "https://www.google.com/",
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} for ${url}`);
+    }
+    return await response.text();
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return await response.text();
 }
 /**
  * Clean text content
@@ -73,6 +80,40 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
   return menuLinks;
 }
 /**
+ * Extract PDF links from page
+ */ function extractPDFLinks(html, baseUrl) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  if (!doc) return [];
+  const pdfLinks: { text: string; href: string }[] = [];
+  const seen = new Set();
+  // Find all links
+  const links = doc.querySelectorAll("a");
+  links.forEach((link) => {
+    const href = link.getAttribute("href") || "";
+    const text = cleanText(link.textContent || "");
+    // Check if link points to PDF
+    const isPDF =
+      href.toLowerCase().endsWith(".pdf") ||
+      href.toLowerCase().includes(".pdf?") ||
+      href.toLowerCase().includes("/pdf/");
+    if (isPDF) {
+      try {
+        const absoluteUrl = new URL(href, baseUrl).toString();
+        if (!seen.has(absoluteUrl)) {
+          seen.add(absoluteUrl);
+          pdfLinks.push({
+            text: text || "Menu PDF",
+            href: absoluteUrl,
+          });
+        }
+      } catch {
+        // Invalid URL, skip
+      }
+    }
+  });
+  return pdfLinks;
+}
+/**
  * Extract text content from menu page
  */ function extractTextContent(html) {
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -97,34 +138,62 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
   return lines.join("\n");
 }
 /**
- * Scrape menu pages
- */ async function scrapeMenuPages(urls) {
-  const results = new Map();
-  for (const url of urls) {
-    try {
-      console.log(`Fetching: ${url}`);
-      const html = await fetchHTML(url);
-      const text = extractTextContent(html);
-      if (text.length > 0 && !results.has(text)) {
-        results.set(text, {
-          url,
-          text,
-          error: null,
-        });
-        console.log(`Extracted ${text.length} characters from ${url}`);
-      }
-      // Rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    } catch (error) {
-      console.error(`Error scraping ${url}: ${error}`);
-      results.set(url, {
-        url,
-        text: "",
-        error: error,
-      });
-    }
+ * Scrape a single menu page
+ */ async function scrapeSinglePage(url) {
+  if (url.toLowerCase().includes(".pdf")) {
+    return null;
   }
-  return Array.from(results.values());
+  try {
+    console.log(`Fetching: ${url}`);
+    const html = await fetchHTML(url);
+    const text = extractTextContent(html);
+    const pdfLinks = extractPDFLinks(html, url);
+    console.log(
+      `Extracted ${text.length} characters and ${pdfLinks.length} PDFs from ${url}`
+    );
+    return {
+      url,
+      text,
+      pdfLinks,
+      error: null,
+    };
+  } catch (error) {
+    console.error(`Error scraping ${url}: ${error}`);
+    return {
+      url,
+      text: "",
+      pdfLinks: [],
+      error: error.message || String(error),
+    };
+  }
+}
+/**
+ * Scrape menu pages in parallel
+ */ async function scrapeMenuPages(urls, maxConcurrent = 3) {
+  const results = new Map();
+  const allPDFs = new Map();
+  // Process in batches
+  for (let i = 0; i < urls.length; i += maxConcurrent) {
+    const batch = urls.slice(i, i + maxConcurrent);
+    const batchResults = await Promise.all(batch.map(scrapeSinglePage));
+    batchResults.forEach((page) => {
+      if (!page) return;
+      // Collect PDFs
+      page.pdfLinks.forEach((pdf) => {
+        if (!allPDFs.has(pdf.href)) {
+          allPDFs.set(pdf.href, pdf);
+        }
+      });
+      // Store unique pages by text content
+      if (page.text.length > 0 && !results.has(page.text)) {
+        results.set(page.text, page);
+      }
+    });
+  }
+  return {
+    pages: Array.from(results.values()),
+    allPDFs: Array.from(allPDFs.values()),
+  };
 }
 /**
  * Parse menu text using OpenAI
@@ -245,8 +314,42 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
   return result.menuItems || [];
 }
 /**
+ * Parse a single menu page with OpenAI
+ */ async function parseSingleMenu(page) {
+  if (!page.text || page.error) {
+    console.warn(`Skipping ${page.url}: ${page.error || "No text"}`);
+    return {
+      url: page.url,
+      itemCount: 0,
+      items: [],
+      error: page.error || "No text content",
+    };
+  }
+  try {
+    console.log(`Parsing menu from: ${page.url}`);
+    const menuItems = await parseMenuWithOpenAI(page.text);
+    console.log(`Extracted ${menuItems.length} menu items`);
+    return {
+      url: page.url,
+      itemCount: menuItems.length,
+      items: menuItems,
+    };
+  } catch (error) {
+    console.error(`Error parsing ${page.url}:`, error);
+    return {
+      url: page.url,
+      itemCount: 0,
+      items: [],
+      error: error.message || String(error),
+    };
+  }
+}
+/**
  * Main scraping and parsing workflow
- */ async function scrapeAndParseRestaurant(restaurantUrl) {
+ */ async function scrapeAndParseRestaurant(
+  restaurantUrl,
+  options = { maxPages: 5, maxConcurrent: 3 }
+) {
   console.log(`Starting scrape for: ${restaurantUrl}`);
   // Step 1: Find menu links
   const html = await fetchHTML(restaurantUrl);
@@ -256,50 +359,28 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
     return {
       restaurantUrl,
       menuLinks: [],
+      pdfMenus: [],
       parsedMenus: [],
       timestamp: new Date().toISOString(),
     };
   }
-  // Step 2: Scrape menu pages
+  // Step 2: Scrape menu pages (limit to maxPages)
   const validUrls = menuLinks
     .filter((link) => link.href)
-    .map((link) => link.href);
-  const menuPages = await scrapeMenuPages(validUrls);
-  console.log(`Scraped ${menuPages.length} menu pages`);
-  // Step 3: Parse with OpenAI
-  const parsedMenus: {
-    url: string;
-    itemCount: number;
-    items: any[];
-    error?: any;
-  }[] = [];
-  for (const page of menuPages) {
-    if (!page.text || page.error) {
-      console.warn(`Skipping ${page.url}: ${page.error || "No text"}`);
-      continue;
-    }
-    try {
-      console.log(`Parsing menu from: ${page.url}`);
-      const menuItems = await parseMenuWithOpenAI(page.text);
-      console.log(`Extracted ${menuItems.length} menu items`);
-      parsedMenus.push({
-        url: page.url,
-        itemCount: menuItems.length,
-        items: menuItems,
-      });
-    } catch (error) {
-      console.error(`Error parsing ${page.url}:`, error);
-      parsedMenus.push({
-        url: page.url,
-        itemCount: 0,
-        items: [],
-        error: error,
-      });
-    }
-  }
+    .map((link) => link.href)
+    .slice(0, options.maxPages);
+  console.log(
+    `Processing ${validUrls.length} menu pages (limited to ${options.maxPages})`
+  );
+  const scrapedData = await scrapeMenuPages(validUrls, options.maxConcurrent);
+  console.log(`Scraped ${scrapedData.pages.length} menu pages`);
+  console.log(`Found ${scrapedData.allPDFs.length} PDF files`);
+  // Step 3: Parse with OpenAI in parallel
+  const parsedMenus = await Promise.all(scrapedData.pages.map(parseSingleMenu));
   return {
     restaurantUrl,
     menuLinks,
+    pdfMenus: scrapedData.allPDFs,
     parsedMenus,
     totalItems: parsedMenus.reduce((sum, menu) => sum + menu.itemCount, 0),
     timestamp: new Date().toISOString(),
@@ -320,7 +401,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
     });
   }
   try {
-    const { restaurantUrl } = await req.json();
+    const { restaurantUrl, maxPages = 5, maxConcurrent = 3 } = await req.json();
     if (!restaurantUrl) {
       return new Response(
         JSON.stringify({
@@ -335,7 +416,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
         }
       );
     }
-    const result = await scrapeAndParseRestaurant(restaurantUrl);
+    const result = await scrapeAndParseRestaurant(restaurantUrl, {
+      maxPages,
+      maxConcurrent,
+    });
     return new Response(JSON.stringify(result), {
       status: 200,
       headers: {
