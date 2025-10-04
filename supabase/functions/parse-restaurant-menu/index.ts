@@ -348,7 +348,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
  * Main scraping and parsing workflow
  */ async function scrapeAndParseRestaurant(
   restaurantUrl,
-  options = { maxPages: 5, maxConcurrent: 3 }
+  options = { maxPages: 3, maxConcurrent: 2 }
 ) {
   console.log(`Starting scrape for: ${restaurantUrl}`);
   // Step 1: Find menu links
@@ -375,8 +375,14 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
   const scrapedData = await scrapeMenuPages(validUrls, options.maxConcurrent);
   console.log(`Scraped ${scrapedData.pages.length} menu pages`);
   console.log(`Found ${scrapedData.allPDFs.length} PDF files`);
-  // Step 3: Parse with OpenAI in parallel
-  const parsedMenus = await Promise.all(scrapedData.pages.map(parseSingleMenu));
+  // Step 3: Parse with OpenAI sequentially to avoid memory spikes
+  const parsedMenus = [];
+  for (const page of scrapedData.pages) {
+    const result = await parseSingleMenu(page);
+    parsedMenus.push(result);
+    // Allow garbage collection between parses
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   return {
     restaurantUrl,
     menuLinks,
@@ -401,7 +407,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
     });
   }
   try {
-    const { restaurantUrl, maxPages = 5, maxConcurrent = 3 } = await req.json();
+    const { restaurantUrl, maxPages = 3, maxConcurrent = 2 } = await req.json();
     if (!restaurantUrl) {
       return new Response(
         JSON.stringify({
