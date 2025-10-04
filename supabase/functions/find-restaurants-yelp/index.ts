@@ -228,14 +228,14 @@ Deno.serve(async (req: Request) => {
     }
 
     // Get API keys from environment
-    const yelpApiKey = Deno.env.get("YELP_API_KEY");
+    const yelpApiKey = Deno.env.get("YELP_API");
     const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (!yelpApiKey) {
       return new Response(
         JSON.stringify({
           error: "Configuration error",
-          message: "YELP_API_KEY not configured",
+          message: "YELP_API not configured",
         }),
         {
           status: 500,
