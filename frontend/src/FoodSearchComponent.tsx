@@ -1,40 +1,16 @@
-import React, { useState, useEffect, useCallback, type FC, type ChangeEvent, type SVGProps, type MouseEvent } from 'react';
+import { useState, useEffect, useCallback, type FC, type ChangeEvent, type SVGProps, type MouseEvent } from 'react';
 import { useFoodSearch } from './hooks/useFoodSearch';
 import ResultsList from './components/ResultsList';
-
-// Toggle this to switch between mock and real API
-const USE_MOCK_DATA = true;
 
 // --- Icon Components ---
 
 type IconProps = SVGProps<SVGSVGElement>;
-
-const SearchIcon: FC<IconProps> = (props) => (
-  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="8" />
-    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-  </svg>
-);
 
 const LocateIcon: FC<IconProps> = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="2" y1="12" x2="22" y2="12" />
     <line x1="12" y1="2" x2="12" y2="22" />
     <circle cx="12" cy="12" r="4" />
-  </svg>
-);
-
-const MapPinIcon: FC<IconProps> = (props) => (
-  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-    <circle cx="12" cy="10" r="3" />
-  </svg>
-);
-
-const CheckCircleIcon: FC<IconProps> = (props) => (
-  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-    <polyline points="22 4 12 14.01 9 11.01" />
   </svg>
 );
 
@@ -141,116 +117,136 @@ const FoodSearchComponent: FC = () => {
     }
 
     const isSuccess: boolean = message === LOCATION_SUCCESS_MESSAGE;
-    const icon: React.ReactNode | null = isSuccess ? <CheckCircleIcon className="w-4 h-4 mr-1 text-green-500" /> : null;
-    const color: string = isSuccess ? 'text-green-500' : 'text-red-500';
+    const color: string = isSuccess ? 'text-sage-700' : 'text-red-700';
 
     return (
-      <div className={`flex items-center p-2 rounded-lg bg-white/10 mt-2 transition-all duration-300 ${color} shadow-inner`}>
-        {icon}
-        <p className="text-sm font-medium">{message}</p>
+      <div className={`p-2 mt-2 text-sm ${color}`}>
+        {message}
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans antialiased text-gray-800">
+    <div className="min-h-screen bg-stone-50 font-serif antialiased text-stone-800">
       {/* Header */}
-      <header className="py-4 bg-white shadow-md border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-gray-800 tracking-tight">
+      <header className="py-6 bg-white border-b border-stone-200">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+          <h1 className="text-2xl font-normal text-stone-800 tracking-wide">
             MyFoodPalette
           </h1>
-          <nav>
-            <a href="#" className="text-gray-600 hover:text-gray-900 transition duration-200 text-lg font-medium">Home</a>
+          <nav className="flex items-center gap-8">
+            <a href="#" className="text-stone-600 hover:text-stone-900 transition duration-200 text-sm">How it works</a>
+            <a href="#" className="text-stone-600 hover:text-stone-900 transition duration-200 text-sm">About</a>
           </nav>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-24">
-        <div className="text-center w-full">
+      {/* Hero Section */}
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12 text-center">
+        <h2 className="text-4xl sm:text-5xl font-normal text-stone-900 mb-6 leading-tight">
+          Find dishes that match your needs
+        </h2>
+        <p className="text-lg text-stone-600 mb-8 leading-relaxed">
+          Search by dietary requirements, ingredients, or cuisine. We scan restaurant menus in your area to find exactly what you're looking for.
+        </p>
+      </div>
+
+      {/* Main Search Area */}
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200">
           
           {/* Location Section */}
-          <div className="mb-10 sm:mb-12 flex flex-col items-center">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">
+          <div className="p-8 border-b border-stone-200">
+            <label className="block text-sm text-stone-700 mb-3">
               Location
-            </h3>
+            </label>
             
-            {/* Location Input Group */}
-            <div className="flex space-x-2 items-center w-full max-w-sm relative">
-              
-              {/* Manual/Auto Location Input */}
-              <div className="flex flex-grow relative rounded-lg shadow-sm">
-                <MapPinIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <div className="flex gap-3 items-center">
+              <div className="flex-1 relative">
                 <input
                   type="text"
                   value={location}
                   onChange={handleLocationChange}
-                  placeholder="Enter your address or use GPS"
-                  className="w-full pl-10 py-3 border border-gray-300 rounded-lg focus:ring-amber-500 focus:border-amber-500 transition duration-150 text-gray-700"
+                  placeholder="Enter your address"
+                  className="w-full px-4 py-3 border border-stone-300 rounded focus:outline-none focus:border-sage-600 transition duration-150 text-stone-800 placeholder-stone-400"
                   aria-label="Location input"
                   disabled={isLocating}
                 />
               </div>
               
-              {/* GPS Button */}
               <button
                 onClick={handleGeolocationClick}
                 disabled={isLocating}
-                className={`p-3 rounded-lg transition duration-200 transform shadow-md border border-gray-300
-                  ${isLocating ? 'bg-amber-100 cursor-not-allowed text-amber-500' : 'bg-white hover:bg-gray-100 active:bg-gray-200 text-gray-600'}
+                className={`px-4 py-3 rounded border transition-colors duration-200 flex items-center gap-2 whitespace-nowrap
+                  ${isLocating 
+                    ? 'bg-stone-100 text-stone-500 border-stone-300 cursor-not-allowed' 
+                    : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-50 hover:border-stone-400'}
                 `}
                 aria-label="Use current location via GPS"
               >
-                <LocateIcon className={`w-6 h-6 ${isLocating ? 'animate-spin' : ''}`} />
+                <LocateIcon className={`w-5 h-5 ${isLocating ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Use GPS</span>
               </button>
             </div>
             
-            {/* Feedback Message */}
             {feedbackMessage && <LocationFeedback message={feedbackMessage} />}
-            
           </div>
 
           {/* Search Section */}
-          <div className="p-6 rounded-xl bg-white shadow-xl w-full">
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">
-              What would you like to eat or drink?
-            </h3>
-            <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
-              example: you can search "Tiramisu" to find nearby locations serving this item.
-            </p>
+          <div className="p-8">
+            <label className="block text-sm text-stone-700 mb-3">
+              What are you looking for?
+            </label>
             
-            {/* Search Input Group */}
-            <div className="relative flex w-full shadow-lg rounded-xl mb-8">
-              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-6 h-6 text-gray-400" />
+            <div className="relative mb-6">
               <input
                 type="search"
                 value={searchQuery}
                 onChange={handleSearchChange}
-                placeholder="e.g., cheese burger, tiramisu, matcha latte"
-                className="w-full pl-12 pr-4 py-4 border-none rounded-xl text-lg text-gray-700 bg-gray-50 focus:ring-amber-500 focus:border-amber-500 placeholder-gray-400"
+                placeholder="high-protein bowl, gluten-free pasta, vegan options..."
+                className="w-full px-4 py-3 border border-stone-300 rounded focus:outline-none focus:border-sage-600 transition duration-150 text-stone-800 placeholder-stone-400"
                 aria-label="Food or drink search input"
               />
             </div>
 
-            {/* Search Button */}
+            {/* Example searches */}
+            <div className="mb-6">
+              <p className="text-xs text-stone-500 mb-2">Suggestions:</p>
+              <div className="flex flex-wrap gap-2">
+                {['high-protein bowl', 'gluten-free', 'vegan options', 'no peanuts', 'keto-friendly'].map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setSearchQuery(tag)}
+                    className="px-3 py-1.5 text-sm bg-stone-100 hover:bg-stone-200 text-stone-700 rounded transition-colors duration-150"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <button
-              className="w-full sm:w-1/2 py-3 rounded-xl text-lg font-bold bg-amber-500 text-white hover:bg-amber-600 transition duration-150 shadow-lg transform hover:scale-[1.01] disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="w-full py-3 rounded text-base bg-sage-700 text-white hover:bg-sage-800 transition-colors duration-200 disabled:bg-stone-300 disabled:cursor-not-allowed"
               onClick={handleSearchClick}
-              disabled={loading}
+              disabled={loading || !searchQuery.trim() || latitude === null || longitude === null}
             >
-              {loading ? '🔄 SEARCHING...' : 'SEARCH'}
+              {loading ? 'Searching...' : 'Search'}
             </button>
+
+            {(!latitude || !longitude) && !isLocating && (
+              <p className="mt-3 text-sm text-stone-500 text-center">
+                Please set your location first
+              </p>
+            )}
           </div>
-          
         </div>
       </main>
 
       {/* Error Display */}
       {error && (
-        <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-            <strong>Error:</strong> {error}
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+          <div className="p-4 bg-red-50 border border-red-200 rounded text-red-800 text-sm">
+            {error}
           </div>
         </div>
       )}
