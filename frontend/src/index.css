@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --font-family-serif: 'Georgia', 'Cambria', 'Times New Roman', serif;
+  
+  --color-sage-50: #f6f7f4;
+  --color-sage-100: #e8ebe3;
+  --color-sage-200: #d1d7c7;
+  --color-sage-300: #b5bea5;
+  --color-sage-400: #9aa687;
+  --color-sage-500: #7d8a6c;
+  --color-sage-600: #667055;
+  --color-sage-700: #505845;
+  --color-sage-800: #414739;
+  --color-sage-900: #373d31;
+}
