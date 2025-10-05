@@ -21,9 +21,7 @@ Deno.serve(async (req: Request) => {
     const searchQuery = (url.searchParams.get("query") || "").trim();
 
     // Use SUPABASE_URL env var for calling other functions (works for both local and production)
-    const supabaseUrl =
-      Deno.env.get("SUPABASE_URL") ||
-      "https://itidgaeetundolqnhfkp.supabase.co";
+    const supabaseUrl = "https://itidgaeetundolqnhfkp.supabase.co";
 
     console.log("Search query:", searchQuery);
 
@@ -88,27 +86,51 @@ Deno.serve(async (req: Request) => {
       },
     ];
 
-    const yelpResults = await fetch(
-      `${supabaseUrl}/functions/v1/find-restaurants-yelp?latitude=${latitude}&longitude=${longitude}&radius=${radius}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: req.headers.get("Authorization") || "",
-        },
-      }
-    );
+    let yelpResultsData = [];
+    try {
+      const yelpResults = await fetch(
+        `${supabaseUrl}/functions/v1/find-restaurants-yelp?latitude=${latitude}&longitude=${longitude}&radius=${radius}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: req.headers.get("Authorization") || "",
+          },
+        }
+      );
+      yelpResultsData = await yelpResults.json();
+    } catch (error) {
+      console.error("Error parsing Yelp results:", error);
+    }
 
-    const yelpResultsData = await yelpResults.json();
+    // Check if yelpResultsData is an array (success) or error object
+    const yelpRestaurants = Array.isArray(yelpResultsData)
+      ? yelpResultsData.filter((r: any) => r.url !== "NOT_FOUND")
+      : [];
 
-    const yelpRestaurants = yelpResultsData.filter(
-      (r: any) => r.url !== "NOT_FOUND"
-    );
+    if (!Array.isArray(yelpResultsData)) {
+      console.warn(
+        "Yelp search failed, using hardcoded restaurants:",
+        yelpResultsData
+      );
+    }
 
     const restaurants =
       yelpRestaurants.length > 0 ? yelpRestaurants : hardcodedRestaurants;
 
     const parsePromises = restaurants.map(async (restaurant) => {
+      // Guard against undefined/null restaurant
+      if (!restaurant) {
+        console.error("Encountered undefined restaurant in map");
+        return {
+          restaurantName: "Unknown",
+          restaurantUrl: "unknown",
+          menuResponse: "",
+          status: "error",
+          error: "Restaurant data is undefined",
+        };
+      }
+
       const parseUrl = `${supabaseUrl}/functions/v1/parse-restaurant-menu`;
       try {
         console.log(`Parsing menu for: ${restaurant.url}`);
@@ -129,32 +151,28 @@ Deno.serve(async (req: Request) => {
             `parse-restaurant-menu failed for ${restaurant.url}: ${parseResponse.status}`
           );
           return {
-            restaurantName: restaurant.name,
-            restaurantUrl: restaurant.url,
+            restaurantName: restaurant.name || "Unknown",
+            restaurantUrl: restaurant.url || "unknown",
             menuResponse: responseText,
             status: "error",
             statusCode: parseResponse.status,
           };
         }
 
-        console.log(
-          `Received menu response for ${restaurant.name}, length=${responseText.length}`
-        );
-
         return {
-          restaurantName: restaurant.name,
-          restaurantUrl: restaurant.url,
+          restaurantName: restaurant.name || "Unknown",
+          restaurantUrl: restaurant.url || "unknown",
           menuResponse: responseText,
           status: "success",
         };
       } catch (error) {
-        console.error(`Error parsing ${restaurant.url}:`, error);
+        console.error(`Error parsing ${restaurant?.url}:`, error);
         return {
-          restaurantName: restaurant.name,
-          restaurantUrl: restaurant.url,
+          restaurantName: restaurant?.name || "Unknown",
+          restaurantUrl: restaurant?.url || "unknown",
           menuResponse: "",
           status: "error",
-          error: error instanceof Error ? error : String(error),
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     });
@@ -166,7 +184,7 @@ Deno.serve(async (req: Request) => {
 
     const combineUrl = `${supabaseUrl}/functions/v1/combineAllResults`;
     const combinePayload = {
-      restaurants: hardcodedRestaurants,
+      restaurants: restaurants,
       parsedMenus,
       searchParams: {
         latitude,
@@ -187,20 +205,11 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify(combinePayload),
     });
 
-    const combinedText = await combineResponse.text();
+    const combinedText = await combineResponse.json();
 
-    if (!combineResponse.ok) {
-      console.error(
-        "combineAllResults returned error:",
-        combineResponse.status,
-        combinedText.substring(0, 200)
-      );
-      throw new Error(
-        `combineAllResults error ${combineResponse.status}: ${combinedText}`
-      );
-    }
+    console.log("combineAllResults response:", combinedText);
 
-    return new Response(combinedText, {
+    return new Response(JSON.stringify(combinedText), {
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -209,20 +218,11 @@ Deno.serve(async (req: Request) => {
     });
   } catch (error) {
     console.error("Error in fetchSuggestions:", error);
-    console.error(
-      "Error details:",
-      error instanceof Error ? error : String(error)
-    );
-    console.error(
-      "Error stack:",
-      error instanceof Error ? error : "No stack trace"
-    );
 
     // Return error response instead of fallback data
     return new Response(
       JSON.stringify({
         error: "Failed to fetch suggestions",
-        message: error instanceof Error ? error : String(error),
         results: [],
         metadata: {
           totalResults: 0,

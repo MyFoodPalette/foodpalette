@@ -146,6 +146,8 @@ Deno.serve(async (req: Request) => {
       throw new Error("OPENAI_API_KEY not configured");
     }
 
+    console.log("combineAllResults:", parsedMenus);
+
     const parsedMenuContext = (parsedMenus || [])
       .map((entry, index) => {
         if (!entry) {
@@ -166,21 +168,26 @@ Raw Menu Response:
 ${trimmed}`;
         }
 
+        // Ensure entry is an object before accessing properties
+        if (typeof entry !== "object" || entry === null) {
+          return `Restaurant: ${fallbackName}
+URL: ${fallbackUrl}
+Status: invalid-data
+Error: Entry is not a valid object`;
+        }
+
         const typedEntry = entry as RawMenuResponse;
-        const name = typedEntry.restaurantName || fallbackName;
-        const url = typedEntry.restaurantUrl || fallbackUrl;
-        const status =
-          typedEntry.status || (typedEntry.error ? "error" : "success");
-        const errorDetails = typedEntry.error
-          ? `
-Reported Error: ${typedEntry.error}`
-          : "";
-        const codeDetails = typedEntry.statusCode
-          ? ` (HTTP ${typedEntry.statusCode})`
+        const name = typedEntry?.restaurantName || fallbackName;
+        const url = typedEntry?.restaurantUrl || fallbackUrl;
+        const status = typedEntry?.status || "error";
+        const errorDetails = "It failed to parse the menu";
+        const codeDetails = typedEntry?.statusCode
+          ? ` (HTTP ${typedEntry?.statusCode})`
           : "";
 
         const rawMenu =
-          typeof typedEntry.menuResponse === "string" &&
+          typeof typedEntry?.menuResponse === "string" &&
+          typedEntry?.menuResponse?.trim &&
           typedEntry.menuResponse.trim().length > 0
             ? typedEntry.menuResponse.trim()
             : JSON.stringify(typedEntry, null, 2);
@@ -292,7 +299,7 @@ Please combine this data into the required JSON format. Focus on creating meanin
           Authorization: `Bearer ${openaiApiKey}`,
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: "gpt-5",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -313,12 +320,22 @@ Please combine this data into the required JSON format. Focus on creating meanin
     const openaiData = await openaiResponse.json();
     console.log("OpenAI response received, parsing content...");
 
-    const content = openaiData.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("OpenAI returned empty content");
+    if (!openaiData || typeof openaiData !== "object") {
+      throw new Error("OpenAI returned invalid response structure");
     }
 
-    let generatedResponse;
+    const content = openaiData.choices?.[0]?.message?.content;
+    if (!content) {
+      console.error(
+        "OpenAI response structure:",
+        JSON.stringify(openaiData, null, 2)
+      );
+      throw new Error(
+        `OpenAI returned empty content. Response: ${JSON.stringify(openaiData)}`
+      );
+    }
+
+    let generatedResponse = null;
     try {
       generatedResponse = JSON.parse(content);
     } catch (parseError) {
@@ -332,7 +349,7 @@ Please combine this data into the required JSON format. Focus on creating meanin
 
     console.log("Successfully generated combined response");
 
-    return new Response(JSON.stringify(generatedResponse), {
+    return new Response(generatedResponse, {
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
@@ -345,7 +362,6 @@ Please combine this data into the required JSON format. Focus on creating meanin
     return new Response(
       JSON.stringify({
         error: "Failed to combine results",
-        message: error instanceof Error ? error : String(error),
         results: [],
         metadata: {
           totalResults: 0,

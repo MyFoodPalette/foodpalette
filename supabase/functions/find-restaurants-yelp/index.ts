@@ -51,7 +51,7 @@ async function searchYelpRestaurants(
     latitude: latitude.toString(),
     longitude: longitude.toString(),
     radius: Math.round(Math.min(radiusMeters, 40000)).toString(), // Yelp max is 40000 meters
-    limit: "50", // Yelp allows up to 50, but 20 is reasonable,
+    limit: "20", // Yelp allows up to 50, but 20 is reasonable,
     sort_by: "best_match",
   });
 
@@ -320,7 +320,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         error: "Failed to find restaurants",
-        message: error instanceof Error ? error : String(error),
+        message: error instanceof Error ? error.message : String(error),
       }),
       {
         status: 500,

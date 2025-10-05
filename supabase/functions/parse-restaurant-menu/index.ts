@@ -316,13 +316,21 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 /**
  * Parse a single menu page with OpenAI
  */ async function parseSingleMenu(page) {
+  if (!page) {
+    console.warn("Skipping undefined/null page");
+    return {
+      url: "unknown",
+      itemCount: 0,
+      items: [],
+      error: "Page is undefined or null",
+    };
+  }
   if (!page.text || page.error) {
-    console.warn(`Skipping ${page.url}: ${page.error || "No text"}`);
     return {
       url: page.url,
       itemCount: 0,
       items: [],
-      error: page.error || "No text content",
+      error: "No text content",
     };
   }
   try {
